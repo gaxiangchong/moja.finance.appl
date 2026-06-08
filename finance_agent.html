@@ -1,0 +1,2473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moja Finance Agent</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3250;
+    --accent: #6c63ff;
+    --accent2: #00c896;
+    --danger: #ff5c5c;
+    --text: #e8eaf6;
+    --muted: #7b82a8;
+    --credit: #00c896;
+    --debit: #ff5c5c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; min-height: 100vh; }
+
+  /* Layout */
+  .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+  .sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 24px 0; display: flex; flex-direction: column; }
+  .main { padding: 24px; overflow-y: auto; }
+
+  /* Sidebar */
+  .logo { padding: 0 20px 24px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+  .logo h1 { font-size: 17px; font-weight: 700; color: var(--accent); }
+  .logo p { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .nav-item { padding: 10px 20px; cursor: pointer; display: flex; align-items: center; gap: 10px; color: var(--muted); border-radius: 0; transition: all 0.15s; font-size: 13px; }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: var(--surface2); color: var(--accent); border-left: 3px solid var(--accent); }
+  .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+  .sidebar-footer { margin-top: auto; padding: 16px 20px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); }
+
+  /* API / LLM section */
+  .api-section { padding: 10px 20px; margin: 4px 0; }
+  .api-section label { font-size: 11px; color: var(--muted); display: block; margin-bottom: 5px; }
+  .api-section input, .api-section select { width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 7px 10px; border-radius: 6px; font-size: 12px; }
+  .api-section input:focus, .api-section select:focus { outline: none; border-color: var(--accent); }
+  .provider-badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 600; margin-left: 6px; vertical-align: middle; }
+  .badge-cloud { background: rgba(108,99,255,0.2); color: var(--accent); }
+  .badge-local { background: rgba(0,200,150,0.2); color: var(--credit); }
+  .llm-divider { margin: 8px 20px; border: none; border-top: 1px solid var(--border); }
+
+  /* Panels */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* Page header */
+  .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  .page-header h2 { font-size: 20px; font-weight: 600; }
+  .page-header .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* Summary cards */
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .card .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .card .value { font-size: 22px; font-weight: 700; }
+  .card .value.credit { color: var(--credit); }
+  .card .value.debit { color: var(--debit); }
+  .card .value.profit { color: var(--accent); }
+  .card .change { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* Date filter bar */
+  .filter-bar { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .filter-bar label { font-size: 12px; color: var(--muted); }
+  .filter-bar select, .filter-bar input[type="date"] { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+  .filter-bar select:focus, .filter-bar input[type="date"]:focus { outline: none; border-color: var(--accent); }
+  .filter-group { display: flex; align-items: center; gap: 8px; }
+  .btn { padding: 7px 16px; border-radius: 7px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; transition: opacity 0.15s; }
+  .btn:hover { opacity: 0.85; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-success { background: var(--accent2); color: #fff; }
+  .btn-danger { background: var(--debit); color: #fff; }
+  .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+  /* Table */
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .table-header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .table-header h3 { font-size: 14px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; }
+  th { padding: 10px 16px; text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); background: var(--surface2); }
+  td { padding: 11px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge-credit { background: rgba(0,200,150,0.15); color: var(--credit); }
+  .badge-debit { background: rgba(255,92,92,0.15); color: var(--debit); }
+  .amount-credit { color: var(--credit); font-weight: 600; }
+  .amount-debit { color: var(--debit); font-weight: 600; }
+  .cat-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+  .empty { text-align: center; padding: 48px; color: var(--muted); }
+
+  /* Upload panel */
+  .upload-area { border: 2px dashed var(--border); border-radius: 12px; padding: 40px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--surface); }
+  .upload-area:hover, .upload-area.drag { border-color: var(--accent); background: rgba(108,99,255,0.05); }
+  .upload-area .icon { font-size: 40px; margin-bottom: 12px; }
+  .upload-area h3 { font-size: 16px; margin-bottom: 6px; }
+  .upload-area p { color: var(--muted); font-size: 13px; }
+  #fileInput { display: none; }
+
+  /* Payment class toggle */
+  .pclass-row { display: flex; gap: 10px; margin-bottom: 16px; }
+  .pclass-btn { flex: 1; padding: 12px 10px; border-radius: 10px; border: 2px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; text-align: center; transition: all 0.18s; font-size: 13px; font-weight: 500; }
+  .pclass-btn .pclass-icon { font-size: 22px; display: block; margin-bottom: 5px; }
+  .pclass-btn .pclass-sub { font-size: 11px; color: var(--muted); margin-top: 2px; display: block; }
+  .pclass-btn:hover { border-color: var(--accent); color: var(--text); }
+  .pclass-btn.selected-bill { border-color: var(--debit); background: rgba(255,92,92,0.08); color: var(--debit); }
+  .pclass-btn.selected-bill .pclass-sub { color: var(--debit); opacity: 0.7; }
+  .pclass-btn.selected-reimb { border-color: var(--accent2); background: rgba(0,200,150,0.08); color: var(--accent2); }
+  .pclass-btn.selected-reimb .pclass-sub { color: var(--accent2); opacity: 0.7; }
+  .pclass-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .pclass-tag-bill  { background: rgba(255,92,92,0.15);  color: var(--debit); }
+  .pclass-tag-reimb { background: rgba(0,200,150,0.15); color: var(--accent2); }
+
+  /* Manual entry form */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group.full { grid-column: 1 / -1; }
+  .form-group label { font-size: 12px; color: var(--muted); }
+  .form-group input, .form-group select, .form-group textarea { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 9px 12px; border-radius: 8px; font-size: 13px; font-family: inherit; }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--accent); }
+  .form-group textarea { resize: vertical; min-height: 60px; }
+  .form-actions { display: flex; gap: 10px; margin-top: 4px; }
+
+  /* Processing overlay */
+  .processing { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-top: 16px; }
+  .processing h4 { margin-bottom: 12px; }
+  .extracted-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; }
+  .extracted-item .ei-info { flex: 1; }
+  .ei-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+  .ei-row input, .ei-row select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 5px 8px; border-radius: 6px; font-size: 12px; flex: 1; min-width: 100px; }
+  .ei-row input:focus, .ei-row select:focus { outline: none; border-color: var(--accent); }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Category breakdown */
+  .cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .cat-bar { margin-bottom: 10px; }
+  .cat-bar .cat-label { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 12px; }
+  .cat-bar .bar-track { background: var(--surface2); border-radius: 4px; height: 6px; overflow: hidden; }
+  .cat-bar .bar-fill { height: 100%; border-radius: 4px; background: var(--accent); transition: width 0.5s; }
+  .mtd-ytd { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .mtd-ytd h3 { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+  .stat-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-label { color: var(--muted); }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface2); border: 1px solid var(--border); padding: 12px 18px; border-radius: 10px; font-size: 13px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); z-index: 9999; transform: translateY(60px); opacity: 0; transition: all 0.3s; }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.success { border-color: var(--credit); }
+  .toast.error { border-color: var(--debit); }
+
+  /* Modal */
+  .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; }
+  .modal-bg.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 28px; width: 500px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+  .modal h3 { margin-bottom: 20px; font-size: 16px; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
+
+  /* ── Payroll styles ── */
+  .tab-bar { display: flex; gap: 4px; background: var(--surface2); border-radius: 8px; padding: 4px; margin-bottom: 20px; }
+  .tab-btn { flex: 1; padding: 7px 10px; border: none; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.15s; }
+  .tab-btn.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  .emp-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; display: flex; align-items: center; gap: 14px; margin-bottom: 10px; cursor: pointer; transition: border-color 0.15s; }
+  .emp-card:hover { border-color: var(--accent); }
+  .emp-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .emp-info { flex: 1; }
+  .emp-name { font-weight: 600; font-size: 14px; }
+  .emp-sub  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .emp-salary { font-size: 15px; font-weight: 700; color: var(--accent2); }
+  .emp-inactive { opacity: 0.45; }
+  .stat-pill { display: inline-flex; align-items: center; gap: 6px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px; font-size: 12px; }
+  .pay-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .pay-table th { background: var(--surface2); padding: 8px 12px; text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 1px solid var(--border); }
+  .pay-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); }
+  .pay-table tr:last-child td { border-bottom: none; }
+  .pay-table tr:hover td { background: var(--surface2); }
+  .pay-section-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 12px 4px; background: var(--surface2); }
+  .pay-total-row td { font-weight: 700; background: var(--surface2); }
+  .slip-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; max-width: 560px; }
+  .slip-header { display: flex; justify-content: space-between; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid var(--border); }
+  .slip-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; }
+  .slip-divider { border: none; border-top: 1px dashed var(--border); margin: 8px 0; }
+  .slip-total { font-weight: 700; font-size: 15px; border-top: 2px solid var(--accent); padding-top: 8px; margin-top: 4px; }
+  .leave-chip { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .leave-annual   { background: rgba(108,99,255,0.2); color: var(--accent); }
+  .leave-medical  { background: rgba(255,92,92,0.2);  color: var(--debit); }
+  .leave-emergency{ background: rgba(255,200,0,0.2); color: #ffc800; }
+  .leave-unpaid   { background: rgba(123,130,168,0.2);color: var(--muted); }
+  .leave-maternity{ background: rgba(255,100,200,0.2);color: #ff64c8; }
+  .leave-approved { background: rgba(0,200,150,0.15); color: var(--credit); }
+  .leave-pending  { background: rgba(255,200,0,0.15); color: #ffc800; }
+  .leave-rejected { background: rgba(255,92,92,0.15); color: var(--debit); }
+  .ph-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; background: rgba(108,99,255,0.15); color: var(--accent); }
+  .section-heading { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); margin: 20px 0 10px; }
+  .payroll-summary-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 20px; }
+  .mini-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+  .mini-card .lbl { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+  .mini-card .val { font-size: 18px; font-weight: 700; }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .cards { grid-template-columns: 1fr 1fr; }
+    .cat-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo">
+      <h1>💰 Moja Finance</h1>
+      <p>Finance Agent v1.0</p>
+    </div>
+    <nav>
+      <div class="nav-item active" onclick="showPanel('dashboard')">
+        <span class="nav-icon">📊</span> Dashboard
+      </div>
+      <div class="nav-item" onclick="showPanel('ledger')">
+        <span class="nav-icon">📋</span> Transaction Ledger
+      </div>
+      <div class="nav-item" onclick="showPanel('upload')">
+        <span class="nav-icon">📤</span> Upload / Import
+      </div>
+      <div class="nav-item" onclick="showPanel('entry')">
+        <span class="nav-icon">✏️</span> Manual Entry
+      </div>
+      <div class="nav-item" onclick="showPanel('reports')">
+        <span class="nav-icon">📈</span> Reports & P&L
+      </div>
+      <div style="font-size:10px;color:var(--muted);padding:10px 20px 4px;text-transform:uppercase;letter-spacing:0.5px">Payroll</div>
+      <div class="nav-item" onclick="showPanel('employees')">
+        <span class="nav-icon">👤</span> Employees
+      </div>
+      <div class="nav-item" onclick="showPanel('leave')">
+        <span class="nav-icon">🗓</span> Leave
+      </div>
+      <div class="nav-item" onclick="showPanel('payroll')">
+        <span class="nav-icon">💵</span> Run Payroll
+      </div>
+      <div class="nav-item" onclick="showPanel('payhistory')">
+        <span class="nav-icon">🗂</span> Pay History
+      </div>
+    </nav>
+    <hr class="llm-divider">
+    <div class="api-section">
+      <label>AI Provider</label>
+      <select id="llmProvider" onchange="onProviderChange()">
+        <option value="claude">☁ Claude (Anthropic)</option>
+        <option value="ollama">🖥 Ollama (local)</option>
+        <option value="lmstudio">🖥 LM Studio (local)</option>
+        <option value="openai-compat">🔧 Custom OpenAI-compat</option>
+      </select>
+    </div>
+    <div class="api-section" id="rowModel">
+      <label>Model name</label>
+      <input type="text" id="llmModel" placeholder="e.g. qwen2-vl, gemma3" oninput="saveLLMSettings()">
+    </div>
+    <div class="api-section" id="rowBase">
+      <label>Base URL</label>
+      <input type="text" id="llmBase" placeholder="http://localhost:11434" oninput="saveLLMSettings()">
+    </div>
+    <div class="api-section" id="rowKey">
+      <label>API Key <span id="keyOptional" style="color:var(--muted);font-size:10px">(optional for local)</span></label>
+      <input type="password" id="apiKey" placeholder="sk-ant-..." oninput="saveLLMSettings()">
+    </div>
+    <hr class="llm-divider">
+    <div class="api-section">
+      <label>☁ Supabase URL</label>
+      <input type="text" id="sbUrl" placeholder="https://xxx.supabase.co" oninput="saveSbConfig()">
+    </div>
+    <div class="api-section">
+      <label>Supabase Anon Key</label>
+      <input type="password" id="sbKey" placeholder="eyJ..." oninput="saveSbConfig()">
+    </div>
+    <div style="padding:4px 20px 10px;display:flex;flex-direction:column;gap:6px">
+      <button class="btn btn-primary btn-sm" style="width:100%;font-size:12px" onclick="connectSupabase()">Connect & Sync</button>
+      <button class="btn btn-outline btn-sm" style="width:100%;font-size:12px" onclick="diagSupabase()">🔍 Diagnose</button>
+    </div>
+    <div class="sidebar-footer">
+      <div><span id="txCount">0</span> transactions</div>
+      <div id="syncStatus" style="margin-top:4px;font-size:11px;color:var(--muted)">💾 Local only</div>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <div id="panel-dashboard" class="panel active">
+      <div class="page-header">
+        <div>
+          <h2>Dashboard</h2>
+          <div class="sub" id="dashDateLabel">Loading...</div>
+        </div>
+        <div class="filter-group">
+          <label>Period:</label>
+          <select id="dashPeriod" onchange="refreshDashboard()">
+            <option value="mtd">Month to Date</option>
+            <option value="ytd">Year to Date</option>
+            <option value="last30">Last 30 Days</option>
+            <option value="last90">Last 90 Days</option>
+            <option value="all">All Time</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Summary cards -->
+      <div class="cards">
+        <div class="card">
+          <div class="label">Total Income</div>
+          <div class="value credit" id="cardIncome">$0.00</div>
+          <div class="change" id="cardIncomeCount">0 transactions</div>
+        </div>
+        <div class="card">
+          <div class="label">Total Expenses</div>
+          <div class="value debit" id="cardExpenses">$0.00</div>
+          <div class="change" id="cardExpensesCount">0 transactions</div>
+        </div>
+        <div class="card">
+          <div class="label">Net Profit / Loss</div>
+          <div class="value profit" id="cardProfit">$0.00</div>
+          <div class="change" id="cardProfitNote">—</div>
+        </div>
+        <div class="card">
+          <div class="label">Transactions</div>
+          <div class="value" id="cardTotal">0</div>
+          <div class="change" id="cardPeriod">—</div>
+        </div>
+      </div>
+
+      <!-- Category breakdown -->
+      <div class="cat-grid">
+        <div class="table-wrap">
+          <div class="table-header"><h3>Expense by Category</h3></div>
+          <div style="padding:16px" id="catBars"><div class="empty" style="padding:24px">No data</div></div>
+        </div>
+        <div class="mtd-ytd" id="mtdYtdPanel">
+          <h3>MTD / YTD Summary</h3>
+          <div id="mtdYtdContent"><div class="empty" style="padding:16px">No data</div></div>
+        </div>
+      </div>
+
+      <!-- Recent transactions -->
+      <div class="table-wrap" style="margin-top:16px">
+        <div class="table-header">
+          <h3>Recent Transactions</h3>
+          <button class="btn btn-outline btn-sm" onclick="showPanel('ledger')">View All</button>
+        </div>
+        <table>
+          <thead><tr>
+            <th>Date</th><th>Description</th><th>Category</th><th>Type</th><th>Amount</th>
+          </tr></thead>
+          <tbody id="recentTbody"><tr><td colspan="5" class="empty">No transactions yet</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- LEDGER -->
+    <div id="panel-ledger" class="panel">
+      <div class="page-header">
+        <div><h2>Transaction Ledger</h2><div class="sub">All recorded transactions</div></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-outline btn-sm" onclick="exportCSV()">⬇ Export CSV</button>
+          <button class="btn btn-primary btn-sm" onclick="showPanel('entry')">+ Add</button>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <div class="filter-group"><label>From:</label><input type="date" id="filterFrom" onchange="refreshLedger()"></div>
+        <div class="filter-group"><label>To:</label><input type="date" id="filterTo" onchange="refreshLedger()"></div>
+        <div class="filter-group"><label>Type:</label>
+          <select id="filterType" onchange="refreshLedger()">
+            <option value="">All</option>
+            <option value="credit">Credit / Income</option>
+            <option value="debit">Debit / Expense</option>
+          </select>
+        </div>
+        <div class="filter-group"><label>Category:</label>
+          <select id="filterCat" onchange="refreshLedger()">
+            <option value="">All</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <input type="text" id="filterSearch" placeholder="Search..." style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:13px;width:160px" oninput="refreshLedger()">
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="clearFilters()">Reset</button>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-header">
+          <h3 id="ledgerCount">0 transactions</h3>
+          <div style="display:flex;gap:8px">
+            <span style="font-size:13px;color:var(--credit)">In: <strong id="ledgerIn">$0</strong></span>
+            <span style="font-size:13px;color:var(--debit)">Out: <strong id="ledgerOut">$0</strong></span>
+          </div>
+        </div>
+        <table>
+          <thead><tr>
+            <th>Date</th><th>Description</th><th>Account</th><th>Category</th><th>Class</th><th>Type</th><th>Amount</th><th>Notes</th><th></th>
+          </tr></thead>
+          <tbody id="ledgerTbody"><tr><td colspan="9" class="empty">No transactions yet</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- UPLOAD -->
+    <div id="panel-upload" class="panel">
+      <div class="page-header">
+        <div><h2>Upload & Import</h2><div class="sub">Upload screenshots or PDF statements — AI will extract transactions</div></div>
+      </div>
+
+      <!-- Payment class selector -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px">What type of payment is this?</div>
+        <div class="pclass-row">
+          <div class="pclass-btn selected-bill" id="pclassBill" onclick="selectPClass('bill')">
+            <span class="pclass-icon">🧾</span>
+            Bill to Company
+            <span class="pclass-sub">Vendor invoice / company expense</span>
+          </div>
+          <div class="pclass-btn" id="pclassReimb" onclick="selectPClass('reimbursement')">
+            <span class="pclass-icon">💼</span>
+            Reimbursement to Staff
+            <span class="pclass-sub">Staff paid out of pocket</span>
+          </div>
+        </div>
+        <div id="pclassHint" style="font-size:12px;color:var(--muted);margin-top:4px">
+          🧾 <strong style="color:var(--debit)">Bill to Company</strong> — direct vendor / supplier invoice charged to the company.
+        </div>
+        <!-- Optional staff name for reimbursement -->
+        <div id="reimbStaffRow" style="display:none;margin-top:12px">
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Staff name (optional)</label>
+          <input type="text" id="reimbStaffName" placeholder="e.g. Alice Tan" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:7px;font-size:13px;width:260px">
+        </div>
+      </div>
+
+      <div class="upload-area" onclick="document.getElementById('fileInput').click()" id="dropZone">
+        <div class="icon">📎</div>
+        <h3>Drop files here or click to browse</h3>
+        <p>Supports PNG, JPG, JPEG, PDF &nbsp;•&nbsp; Select provider in sidebar</p>
+        <input type="file" id="fileInput" accept="image/*,.pdf" multiple onchange="handleFiles(this.files)">
+      </div>
+
+      <div id="extractedList"></div>
+    </div>
+
+    <!-- MANUAL ENTRY -->
+    <div id="panel-entry" class="panel">
+      <div class="page-header">
+        <div><h2>Manual Entry</h2><div class="sub">Add a transaction manually</div></div>
+      </div>
+      <div class="table-wrap" style="padding:24px">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Date *</label>
+            <input type="date" id="entryDate" required>
+          </div>
+          <div class="form-group">
+            <label>Amount *</label>
+            <input type="number" id="entryAmount" placeholder="0.00" step="0.01" min="0">
+          </div>
+          <div class="form-group">
+            <label>Type *</label>
+            <select id="entryType">
+              <option value="debit">Debit / Expense</option>
+              <option value="credit">Credit / Income</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Account</label>
+            <input type="text" id="entryAccount" placeholder="e.g. Business Checking, Cash">
+          </div>
+          <div class="form-group full">
+            <label>Description *</label>
+            <input type="text" id="entryDesc" placeholder="What was this payment for?">
+          </div>
+          <div class="form-group">
+            <label>Category</label>
+            <select id="entryCat">
+              <option value="Salary/Payroll">Salary / Payroll</option>
+              <option value="Sales Revenue">Sales Revenue</option>
+              <option value="Rent/Lease">Rent / Lease</option>
+              <option value="Utilities">Utilities</option>
+              <option value="Supplies">Supplies</option>
+              <option value="Marketing">Marketing</option>
+              <option value="Travel">Travel</option>
+              <option value="Software/SaaS">Software / SaaS</option>
+              <option value="Professional Services">Professional Services</option>
+              <option value="Insurance">Insurance</option>
+              <option value="Taxes">Taxes</option>
+              <option value="Meals/Entertainment">Meals / Entertainment</option>
+              <option value="Equipment">Equipment</option>
+              <option value="Bank Fees">Bank Fees</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Reference / Invoice #</label>
+            <input type="text" id="entryRef" placeholder="Optional">
+          </div>
+          <div class="form-group">
+            <label>Payment Class</label>
+            <select id="entryPClass">
+              <option value="bill">🧾 Bill to Company</option>
+              <option value="reimbursement">💼 Reimbursement to Staff</option>
+            </select>
+          </div>
+          <div class="form-group" id="entryStaffRow" style="display:none">
+            <label>Staff Name</label>
+            <input type="text" id="entryStaffName" placeholder="e.g. Alice Tan">
+          </div>
+          <div class="form-group full">
+            <label>Notes</label>
+            <textarea id="entryNotes" placeholder="Any additional notes..."></textarea>
+          </div>
+        </div>
+        <div class="form-actions" style="margin-top:16px">
+          <button class="btn btn-success" onclick="saveManualEntry()">Save Transaction</button>
+          <button class="btn btn-outline" onclick="clearEntryForm()">Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- REPORTS -->
+    <div id="panel-reports" class="panel">
+      <div class="page-header">
+        <div><h2>Reports & P&L</h2><div class="sub">Profit & Loss statement and detailed breakdowns</div></div>
+        <div class="filter-group">
+          <label>Year:</label>
+          <select id="reportYear" onchange="refreshReports()">
+          </select>
+          <label>Month:</label>
+          <select id="reportMonth" onchange="refreshReports()">
+            <option value="0">Full Year</option>
+            <option value="1">January</option><option value="2">February</option>
+            <option value="3">March</option><option value="4">April</option>
+            <option value="5">May</option><option value="6">June</option>
+            <option value="7">July</option><option value="8">August</option>
+            <option value="9">September</option><option value="10">October</option>
+            <option value="11">November</option><option value="12">December</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- P&L cards -->
+      <div class="cards" style="grid-template-columns:repeat(3,1fr)">
+        <div class="card">
+          <div class="label">Total Revenue</div>
+          <div class="value credit" id="plRevenue">$0.00</div>
+        </div>
+        <div class="card">
+          <div class="label">Total Expenses</div>
+          <div class="value debit" id="plExpenses">$0.00</div>
+        </div>
+        <div class="card">
+          <div class="label">Net Profit / Loss</div>
+          <div class="value profit" id="plProfit">$0.00</div>
+        </div>
+      </div>
+
+      <div class="cat-grid">
+        <!-- Income breakdown -->
+        <div class="table-wrap">
+          <div class="table-header"><h3>Income Breakdown</h3></div>
+          <table>
+            <thead><tr><th>Category</th><th>Amount</th><th>%</th></tr></thead>
+            <tbody id="incomeBreakdown"><tr><td colspan="3" class="empty">No data</td></tr></tbody>
+          </table>
+        </div>
+        <!-- Expense breakdown -->
+        <div class="table-wrap">
+          <div class="table-header"><h3>Expense Breakdown</h3></div>
+          <table>
+            <thead><tr><th>Category</th><th>Amount</th><th>%</th></tr></thead>
+            <tbody id="expenseBreakdown"><tr><td colspan="3" class="empty">No data</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Monthly trend table -->
+      <div class="table-wrap" style="margin-top:16px">
+        <div class="table-header"><h3>Monthly Summary</h3></div>
+        <table>
+          <thead><tr><th>Month</th><th>Income</th><th>Expenses</th><th>Net</th></tr></thead>
+          <tbody id="monthlyTbody"><tr><td colspan="4" class="empty">No data</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         EMPLOYEES
+    ══════════════════════════════════════ -->
+    <div id="panel-employees" class="panel">
+      <div class="page-header">
+        <div><h2>Employees</h2><div class="sub">Manage employee records</div></div>
+        <button class="btn btn-primary" onclick="openEmpModal()">+ Add Employee</button>
+      </div>
+      <div id="empList"><div class="empty" style="padding:48px;text-align:center;color:var(--muted)">No employees yet — add one to get started</div></div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         LEAVE MANAGEMENT
+    ══════════════════════════════════════ -->
+    <div id="panel-leave" class="panel">
+      <div class="page-header">
+        <div><h2>Leave Management</h2><div class="sub">Johor 2026 calendar — EA 1955 entitlements</div></div>
+        <button class="btn btn-primary" onclick="openLeaveModal()">+ Apply Leave</button>
+      </div>
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchLeaveTab('applications',this)">Applications</button>
+        <button class="tab-btn" onclick="switchLeaveTab('balances',this)">Leave Balances</button>
+        <button class="tab-btn" onclick="switchLeaveTab('holidays',this)">Public Holidays (Johor 2026)</button>
+      </div>
+      <div id="leaveTab-applications" class="tab-panel active">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Employee</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Status</th><th>Reason</th><th></th></tr></thead>
+            <tbody id="leaveAppTbody"><tr><td colspan="8" class="empty">No leave applications</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="leaveTab-balances" class="tab-panel">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Employee</th><th>Years of Service</th><th>Annual Entitlement</th><th>AL Used</th><th>AL Balance</th><th>Medical Entitlement</th><th>MC Used</th><th>MC Balance</th></tr></thead>
+            <tbody id="leaveBalTbody"><tr><td colspan="8" class="empty">No employees</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="leaveTab-holidays" class="tab-panel">
+        <div class="table-wrap" style="overflow:hidden">
+          <div class="table-header"><h3>Johor Public Holidays 2026</h3><span style="font-size:12px;color:var(--muted)">Federal + Johor State</span></div>
+          <table><thead><tr><th>Date</th><th>Day</th><th>Holiday</th><th>Type</th></tr></thead>
+          <tbody id="holidayTbody"></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         RUN PAYROLL
+    ══════════════════════════════════════ -->
+    <div id="panel-payroll" class="panel">
+      <div class="page-header">
+        <div><h2>Run Payroll</h2><div class="sub">EPF · SOCSO · EIS · PCB (MTD) · OT — Malaysia EA 1955</div></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="payMonth" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:7px;font-size:13px">
+            <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+            <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+            <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+            <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+          </select>
+          <select id="payYear" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:7px;font-size:13px">
+            <option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option>
+          </select>
+          <button class="btn btn-primary" onclick="generatePayroll()">Generate Payroll</button>
+        </div>
+      </div>
+      <div id="payrollWorkspace"><div class="empty" style="padding:60px;text-align:center;color:var(--muted)">Select month/year and click Generate Payroll</div></div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         PAY HISTORY
+    ══════════════════════════════════════ -->
+    <div id="panel-payhistory" class="panel">
+      <div class="page-header">
+        <div><h2>Payroll History</h2><div class="sub">Finalized payroll runs posted to company expenses</div></div>
+      </div>
+      <div id="payHistoryList"><div class="empty" style="padding:48px;text-align:center;color:var(--muted)">No finalized payroll runs yet</div></div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Employee Modal -->
+<div class="modal-bg" id="empModal">
+  <div class="modal" style="width:620px">
+    <h3 id="empModalTitle">Add Employee</h3>
+    <div class="form-grid">
+      <div class="form-group"><label>Full Name *</label><input type="text" id="empName" placeholder="As per IC/Passport"></div>
+      <div class="form-group"><label>Employee ID</label><input type="text" id="empId" placeholder="e.g. EMP001"></div>
+      <div class="form-group"><label>IC / Passport No.</label><input type="text" id="empIC" placeholder="e.g. 900101-01-1234"></div>
+      <div class="form-group"><label>Position / Job Title</label><input type="text" id="empPosition" placeholder="e.g. Software Engineer"></div>
+      <div class="form-group"><label>Department</label><input type="text" id="empDept" placeholder="e.g. Engineering"></div>
+      <div class="form-group"><label>Join Date *</label><input type="date" id="empJoinDate"></div>
+      <div class="form-group"><label>Basic Monthly Salary (RM) *</label><input type="number" id="empSalary" step="0.01" min="0" placeholder="0.00"></div>
+      <div class="form-group"><label>Working Days/Week</label>
+        <select id="empWorkDays"><option value="5">5 days (Mon–Fri)</option><option value="5.5">5.5 days (Mon–Sat half)</option><option value="6">6 days (Mon–Sat)</option></select>
+      </div>
+      <div class="form-group"><label>Daily Working Hours</label>
+        <select id="empDailyHours"><option value="8">8 hours</option><option value="9">9 hours</option></select>
+      </div>
+      <div class="form-group"><label>Residency Status</label>
+        <select id="empResidency"><option value="resident">Resident</option><option value="non-resident">Non-Resident</option></select>
+      </div>
+      <div class="form-group"><label>Marital Status</label>
+        <select id="empMarital"><option value="single">Single</option><option value="married">Married (spouse working)</option><option value="married-spouse-not-working">Married (spouse not working)</option></select>
+      </div>
+      <div class="form-group"><label>No. of Children</label><input type="number" id="empChildren" min="0" value="0"></div>
+      <div class="form-group"><label>EPF No.</label><input type="text" id="empEPF" placeholder="Optional"></div>
+      <div class="form-group"><label>SOCSO No.</label><input type="text" id="empSOCSO" placeholder="Optional"></div>
+      <div class="form-group"><label>Income Tax No.</label><input type="text" id="empTax" placeholder="Optional"></div>
+      <div class="form-group"><label>Bank</label><input type="text" id="empBank" placeholder="e.g. Maybank"></div>
+      <div class="form-group"><label>Bank Account No.</label><input type="text" id="empBankAcc" placeholder="Optional"></div>
+      <div class="form-group"><label>Status</label>
+        <select id="empStatus"><option value="active">Active</option><option value="inactive">Inactive</option></select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-danger btn-sm" id="empDeleteBtn" onclick="deleteEmployee()" style="display:none">Delete</button>
+      <button class="btn btn-outline" onclick="closeEmpModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEmployee()">Save Employee</button>
+    </div>
+  </div>
+</div>
+
+<!-- Leave Application Modal -->
+<div class="modal-bg" id="leaveModal">
+  <div class="modal" style="width:480px">
+    <h3>Leave Application</h3>
+    <div class="form-grid">
+      <div class="form-group full"><label>Employee *</label>
+        <select id="leaveEmpSel"></select>
+      </div>
+      <div class="form-group"><label>Leave Type *</label>
+        <select id="leaveType">
+          <option value="annual">Annual Leave (AL)</option>
+          <option value="medical">Medical Leave (MC)</option>
+          <option value="emergency">Emergency Leave (EL)</option>
+          <option value="maternity">Maternity Leave</option>
+          <option value="paternity">Paternity Leave</option>
+          <option value="unpaid">Unpaid Leave</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Status</label>
+        <select id="leaveStatus"><option value="approved">Approved</option><option value="pending">Pending</option><option value="rejected">Rejected</option></select>
+      </div>
+      <div class="form-group"><label>From Date *</label><input type="date" id="leaveFrom"></div>
+      <div class="form-group"><label>To Date *</label><input type="date" id="leaveTo"></div>
+      <div class="form-group full"><label>Reason</label><input type="text" id="leaveReason" placeholder="Optional"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeLeaveModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveLeave()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Payslip Modal -->
+<div class="modal-bg" id="slipModal">
+  <div class="modal" style="width:580px">
+    <div id="slipContent"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="document.getElementById('slipModal').classList.remove('open')">Close</button>
+      <button class="btn btn-primary" onclick="window.print()">🖨 Print</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit modal -->
+<div class="modal-bg" id="editModal">
+  <div class="modal">
+    <h3>Edit Transaction</h3>
+    <div class="form-grid">
+      <div class="form-group"><label>Date</label><input type="date" id="editDate"></div>
+      <div class="form-group"><label>Amount</label><input type="number" id="editAmount" step="0.01" min="0"></div>
+      <div class="form-group"><label>Type</label>
+        <select id="editType">
+          <option value="debit">Debit / Expense</option>
+          <option value="credit">Credit / Income</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Account</label><input type="text" id="editAccount"></div>
+      <div class="form-group full"><label>Description</label><input type="text" id="editDesc"></div>
+      <div class="form-group"><label>Category</label>
+        <select id="editCat">
+          <option value="Salary/Payroll">Salary / Payroll</option>
+          <option value="Sales Revenue">Sales Revenue</option>
+          <option value="Rent/Lease">Rent / Lease</option>
+          <option value="Utilities">Utilities</option>
+          <option value="Supplies">Supplies</option>
+          <option value="Marketing">Marketing</option>
+          <option value="Travel">Travel</option>
+          <option value="Software/SaaS">Software / SaaS</option>
+          <option value="Professional Services">Professional Services</option>
+          <option value="Insurance">Insurance</option>
+          <option value="Taxes">Taxes</option>
+          <option value="Meals/Entertainment">Meals / Entertainment</option>
+          <option value="Equipment">Equipment</option>
+          <option value="Bank Fees">Bank Fees</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Reference</label><input type="text" id="editRef"></div>
+      <div class="form-group">
+        <label>Payment Class</label>
+        <select id="editPClass" onchange="toggleEditStaff()">
+          <option value="bill">🧾 Bill to Company</option>
+          <option value="reimbursement">💼 Reimbursement to Staff</option>
+        </select>
+      </div>
+      <div class="form-group" id="editStaffRow" style="display:none">
+        <label>Staff Name</label>
+        <input type="text" id="editStaffName" placeholder="e.g. Alice Tan">
+      </div>
+      <div class="form-group full"><label>Notes</label><textarea id="editNotes"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-danger btn-sm" onclick="deleteTx(editingId)">Delete</button>
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// DATA STORE
+// ============================================================
+let transactions = [];
+let editingId = null;
+
+// Provider defaults
+const PROVIDER_DEFAULTS = {
+  claude:        { base: 'https://api.anthropic.com', model: 'claude-opus-4-5', keyRequired: true  },
+  ollama:        { base: 'http://localhost:11434',    model: 'qwen2-vl',        keyRequired: false },
+  lmstudio:      { base: 'http://localhost:1234',     model: 'qwen2-vl',        keyRequired: false },
+  'openai-compat': { base: 'http://localhost:8080',   model: '',                keyRequired: false },
+};
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem('moja_transactions');
+    if (raw) transactions = JSON.parse(raw);
+  } catch(e) { transactions = []; }
+
+  // Restore LLM settings
+  const s = JSON.parse(localStorage.getItem('moja_llm') || '{}');
+  if (s.provider) document.getElementById('llmProvider').value = s.provider;
+  if (s.model)    document.getElementById('llmModel').value    = s.model;
+  if (s.base)     document.getElementById('llmBase').value     = s.base;
+  if (s.key)      document.getElementById('apiKey').value      = s.key;
+  onProviderChange(true); // apply UI state without overwriting saved values
+}
+
+function saveData() {
+  localStorage.setItem('moja_transactions', JSON.stringify(transactions));
+  document.getElementById('txCount').textContent = transactions.length;
+}
+
+function saveLLMSettings() {
+  localStorage.setItem('moja_llm', JSON.stringify({
+    provider: document.getElementById('llmProvider').value,
+    model:    document.getElementById('llmModel').value,
+    base:     document.getElementById('llmBase').value,
+    key:      document.getElementById('apiKey').value,
+  }));
+}
+
+// Legacy shim (still called from old code paths)
+function saveApiKey(v) { saveLLMSettings(); }
+function getApiKey()   { return document.getElementById('apiKey').value.trim(); }
+
+function onProviderChange(restoring = false) {
+  const p = document.getElementById('llmProvider').value;
+  const d = PROVIDER_DEFAULTS[p];
+
+  // Fill defaults only when user just switched provider (not on restore)
+  if (!restoring) {
+    document.getElementById('llmBase').value  = d.base;
+    document.getElementById('llmModel').value = d.model;
+    saveLLMSettings();
+  }
+
+  const isClaude = p === 'claude';
+  document.getElementById('rowBase').style.display    = isClaude ? 'none' : '';
+  document.getElementById('keyOptional').style.display = d.keyRequired ? 'none' : 'inline';
+  document.getElementById('apiKey').placeholder        = isClaude ? 'sk-ant-...' : 'optional';
+}
+
+function getLLMConfig() {
+  const provider = document.getElementById('llmProvider').value;
+  const model    = document.getElementById('llmModel').value.trim() || PROVIDER_DEFAULTS[provider].model;
+  const base     = (document.getElementById('llmBase').value.trim()  || PROVIDER_DEFAULTS[provider].base).replace(/\/$/, '');
+  const key      = document.getElementById('apiKey').value.trim();
+  return { provider, model, base, key };
+}
+
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+
+// ============================================================
+// PAYMENT CLASS TOGGLE
+// ============================================================
+let currentPClass = 'bill';
+
+function selectPClass(cls) {
+  currentPClass = cls;
+  const billBtn  = document.getElementById('pclassBill');
+  const reimbBtn = document.getElementById('pclassReimb');
+  billBtn.className  = 'pclass-btn' + (cls === 'bill'          ? ' selected-bill'  : '');
+  reimbBtn.className = 'pclass-btn' + (cls === 'reimbursement' ? ' selected-reimb' : '');
+  document.getElementById('reimbStaffRow').style.display = cls === 'reimbursement' ? '' : 'none';
+  document.getElementById('pclassHint').innerHTML = cls === 'bill'
+    ? '🧾 <strong style="color:var(--debit)">Bill to Company</strong> — direct vendor / supplier invoice charged to the company.'
+    : '💼 <strong style="color:var(--accent2)">Reimbursement to Staff</strong> — staff paid out of pocket and is owed by the company.';
+}
+
+function pClassTag(cls, staffName) {
+  if (cls === 'reimbursement') {
+    const name = staffName ? ` · ${staffName}` : '';
+    return `<span class="pclass-tag pclass-tag-reimb">💼 Reimb${name}</span>`;
+  }
+  return `<span class="pclass-tag pclass-tag-bill">🧾 Bill</span>`;
+}
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+function showPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  const navMap = { dashboard: 0, ledger: 1, upload: 2, entry: 3, reports: 4, employees: 6, leave: 7, payroll: 8, payhistory: 9 };
+  const items = document.querySelectorAll('.nav-item');
+  if (navMap[name] !== undefined) items[navMap[name]]?.classList.add('active');
+
+  if (name === 'dashboard')   refreshDashboard();
+  if (name === 'ledger')    { refreshLedger(); populateCatFilter(); }
+  if (name === 'reports')   { populateYearFilter(); refreshReports(); }
+  if (name === 'employees')   refreshEmployeeList();
+  if (name === 'leave')     { refreshLeaveApplications(); renderHolidays(); }
+  if (name === 'payhistory')  refreshPayHistory();
+  // Payroll: initialize month/year selectors
+  if (name === 'payroll') {
+    const now = new Date();
+    document.getElementById('payMonth').value = now.getMonth() + 1;
+    document.getElementById('payYear').value  = now.getFullYear();
+  }
+}
+
+// ============================================================
+// FORMAT HELPERS
+// ============================================================
+function fmt(n) {
+  return '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtSigned(n) {
+  return (n >= 0 ? '+' : '-') + fmt(n);
+}
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// ============================================================
+// DATE FILTERING
+// ============================================================
+function getDateRange(period) {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  let from, to = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+
+  if (period === 'mtd') {
+    from = new Date(y, m, 1);
+  } else if (period === 'ytd') {
+    from = new Date(y, 0, 1);
+  } else if (period === 'last30') {
+    from = new Date(now); from.setDate(from.getDate() - 30);
+  } else if (period === 'last90') {
+    from = new Date(now); from.setDate(from.getDate() - 90);
+  } else {
+    return null; // all
+  }
+  return { from, to };
+}
+
+function filterByDateRange(txs, range) {
+  if (!range) return txs;
+  return txs.filter(t => {
+    const d = new Date(t.date + 'T00:00:00');
+    return d >= range.from && d <= range.to;
+  });
+}
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+function refreshDashboard() {
+  const period = document.getElementById('dashPeriod').value;
+  const range = getDateRange(period);
+  const filtered = filterByDateRange(transactions, range);
+
+  const income = filtered.filter(t => t.type === 'credit').reduce((s, t) => s + t.amount, 0);
+  const expenses = filtered.filter(t => t.type === 'debit').reduce((s, t) => s + t.amount, 0);
+  const profit = income - expenses;
+
+  document.getElementById('cardIncome').textContent = fmt(income);
+  document.getElementById('cardIncomeCount').textContent = filtered.filter(t=>t.type==='credit').length + ' transactions';
+  document.getElementById('cardExpenses').textContent = fmt(expenses);
+  document.getElementById('cardExpensesCount').textContent = filtered.filter(t=>t.type==='debit').length + ' transactions';
+
+  const profitEl = document.getElementById('cardProfit');
+  profitEl.textContent = fmt(profit);
+  profitEl.style.color = profit >= 0 ? 'var(--credit)' : 'var(--debit)';
+  document.getElementById('cardProfitNote').textContent = profit >= 0 ? 'Profitable' : 'Net loss';
+  document.getElementById('cardTotal').textContent = filtered.length;
+
+  const now = new Date();
+  document.getElementById('dashDateLabel').textContent =
+    period === 'mtd' ? `${MONTHS[now.getMonth()]} ${now.getFullYear()}` :
+    period === 'ytd' ? `Year ${now.getFullYear()}` :
+    period === 'last30' ? 'Last 30 days' :
+    period === 'last90' ? 'Last 90 days' : 'All time';
+
+  // Category bars
+  const debitTxs = filtered.filter(t => t.type === 'debit');
+  const catTotals = {};
+  debitTxs.forEach(t => { catTotals[t.category] = (catTotals[t.category] || 0) + t.amount; });
+  const sortedCats = Object.entries(catTotals).sort((a,b) => b[1]-a[1]);
+  const maxCat = sortedCats.length ? sortedCats[0][1] : 1;
+
+  const catBarsEl = document.getElementById('catBars');
+  if (!sortedCats.length) {
+    catBarsEl.innerHTML = '<div class="empty" style="padding:24px">No expense data</div>';
+  } else {
+    catBarsEl.innerHTML = sortedCats.map(([cat, amt]) => `
+      <div class="cat-bar">
+        <div class="cat-label"><span>${cat}</span><span style="color:var(--debit)">${fmt(amt)}</span></div>
+        <div class="bar-track"><div class="bar-fill" style="width:${(amt/maxCat*100).toFixed(1)}%"></div></div>
+      </div>
+    `).join('');
+  }
+
+  // MTD/YTD panel
+  const mtdNow = new Date(); const my = mtdNow.getFullYear(), mm = mtdNow.getMonth();
+  const mtd = transactions.filter(t => { const d = new Date(t.date+'T00:00:00'); return d.getFullYear()===my && d.getMonth()===mm; });
+  const ytd = transactions.filter(t => { const d = new Date(t.date+'T00:00:00'); return d.getFullYear()===my; });
+
+  const mtdIn = mtd.filter(t=>t.type==='credit').reduce((s,t)=>s+t.amount,0);
+  const mtdOut = mtd.filter(t=>t.type==='debit').reduce((s,t)=>s+t.amount,0);
+  const ytdIn = ytd.filter(t=>t.type==='credit').reduce((s,t)=>s+t.amount,0);
+  const ytdOut = ytd.filter(t=>t.type==='debit').reduce((s,t)=>s+t.amount,0);
+
+  document.getElementById('mtdYtdContent').innerHTML = `
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Month to Date (${MONTHS[mm]} ${my})</div>
+    <div class="stat-row"><span class="stat-label">Income</span><span style="color:var(--credit)">${fmt(mtdIn)}</span></div>
+    <div class="stat-row"><span class="stat-label">Expenses</span><span style="color:var(--debit)">${fmt(mtdOut)}</span></div>
+    <div class="stat-row"><span class="stat-label">Net</span><span style="color:${mtdIn-mtdOut>=0?'var(--credit)':'var(--debit)'}">${fmt(mtdIn-mtdOut)}</span></div>
+    <div style="font-size:12px;color:var(--muted);margin:16px 0 8px;text-transform:uppercase;letter-spacing:0.5px">Year to Date (${my})</div>
+    <div class="stat-row"><span class="stat-label">Income</span><span style="color:var(--credit)">${fmt(ytdIn)}</span></div>
+    <div class="stat-row"><span class="stat-label">Expenses</span><span style="color:var(--debit)">${fmt(ytdOut)}</span></div>
+    <div class="stat-row"><span class="stat-label">Net</span><span style="color:${ytdIn-ytdOut>=0?'var(--credit)':'var(--debit)'}">${fmt(ytdIn-ytdOut)}</span></div>
+  `;
+
+  // Recent 8 transactions
+  const recent = [...transactions].sort((a,b) => b.date.localeCompare(a.date)).slice(0, 8);
+  const tbody = document.getElementById('recentTbody');
+  if (!recent.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">No transactions yet</td></tr>';
+  } else {
+    tbody.innerHTML = recent.map(t => `
+      <tr>
+        <td>${t.date}</td>
+        <td>${t.description}</td>
+        <td><span class="cat-badge">${t.category}</span></td>
+        <td><span class="badge badge-${t.type}">${t.type === 'credit' ? 'Credit' : 'Debit'}</span></td>
+        <td class="amount-${t.type}">${t.type === 'debit' ? '-' : '+'}${fmt(t.amount)}</td>
+      </tr>
+    `).join('');
+  }
+}
+
+// ============================================================
+// LEDGER
+// ============================================================
+function populateCatFilter() {
+  const cats = [...new Set(transactions.map(t => t.category))].sort();
+  const sel = document.getElementById('filterCat');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">All</option>' + cats.map(c => `<option value="${c}" ${c===cur?'selected':''}>${c}</option>`).join('');
+}
+
+function clearFilters() {
+  document.getElementById('filterFrom').value = '';
+  document.getElementById('filterTo').value = '';
+  document.getElementById('filterType').value = '';
+  document.getElementById('filterCat').value = '';
+  document.getElementById('filterSearch').value = '';
+  refreshLedger();
+}
+
+function refreshLedger() {
+  let txs = [...transactions];
+  const from = document.getElementById('filterFrom').value;
+  const to = document.getElementById('filterTo').value;
+  const type = document.getElementById('filterType').value;
+  const cat = document.getElementById('filterCat').value;
+  const search = document.getElementById('filterSearch').value.toLowerCase();
+
+  if (from) txs = txs.filter(t => t.date >= from);
+  if (to) txs = txs.filter(t => t.date <= to);
+  if (type) txs = txs.filter(t => t.type === type);
+  if (cat) txs = txs.filter(t => t.category === cat);
+  if (search) txs = txs.filter(t =>
+    t.description.toLowerCase().includes(search) ||
+    (t.notes||'').toLowerCase().includes(search) ||
+    (t.account||'').toLowerCase().includes(search) ||
+    (t.ref||'').toLowerCase().includes(search)
+  );
+
+  txs.sort((a, b) => b.date.localeCompare(a.date));
+
+  const totalIn = txs.filter(t=>t.type==='credit').reduce((s,t)=>s+t.amount,0);
+  const totalOut = txs.filter(t=>t.type==='debit').reduce((s,t)=>s+t.amount,0);
+  document.getElementById('ledgerCount').textContent = txs.length + ' transactions';
+  document.getElementById('ledgerIn').textContent = fmt(totalIn);
+  document.getElementById('ledgerOut').textContent = fmt(totalOut);
+
+  const tbody = document.getElementById('ledgerTbody');
+  if (!txs.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">No transactions match filters</td></tr>';
+    return;
+  }
+  tbody.innerHTML = txs.map(t => `
+    <tr>
+      <td>${t.date}</td>
+      <td>${t.description}</td>
+      <td style="color:var(--muted);font-size:12px">${t.account||'—'}</td>
+      <td><span class="cat-badge">${t.category}</span></td>
+      <td>${pClassTag(t.paymentClass||'bill', t.staffName)}</td>
+      <td><span class="badge badge-${t.type}">${t.type === 'credit' ? 'Credit' : 'Debit'}</span></td>
+      <td class="amount-${t.type}">${t.type === 'debit' ? '-' : '+'}${fmt(t.amount)}</td>
+      <td style="color:var(--muted);font-size:12px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.notes||t.ref||'—'}</td>
+      <td><button class="btn btn-outline btn-sm" onclick="openEdit('${t.id}')">Edit</button></td>
+    </tr>
+  `).join('');
+}
+
+// ============================================================
+// MANUAL ENTRY
+// ============================================================
+function saveManualEntry() {
+  const date = document.getElementById('entryDate').value;
+  const amount = parseFloat(document.getElementById('entryAmount').value);
+  const type = document.getElementById('entryType').value;
+  const desc = document.getElementById('entryDesc').value.trim();
+
+  if (!date || !amount || !desc) { toast('Please fill in Date, Amount, and Description', 'error'); return; }
+
+  const entryPClass = document.getElementById('entryPClass').value;
+  const newTx = {
+    id: uid(), date, amount, type,
+    account: document.getElementById('entryAccount').value.trim(),
+    description: desc,
+    category: document.getElementById('entryCat').value,
+    ref: document.getElementById('entryRef').value.trim(),
+    notes: document.getElementById('entryNotes').value.trim(),
+    paymentClass: entryPClass,
+    staffName: entryPClass === 'reimbursement' ? document.getElementById('entryStaffName').value.trim() : '',
+    source: 'manual'
+  };
+  transactions.push(newTx);
+  saveData();
+  sbUpsert('transactions', toTxRow(newTx));
+  clearEntryForm();
+  toast('Transaction saved!', 'success');
+}
+
+function clearEntryForm() {
+  ['entryDate','entryAmount','entryAccount','entryDesc','entryRef','entryNotes','entryStaffName'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('entryDate').value = new Date().toISOString().slice(0,10);
+  document.getElementById('entryPClass').value = 'bill';
+  document.getElementById('entryStaffRow').style.display = 'none';
+}
+
+// Show/hide staff name in manual entry
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('entryPClass').addEventListener('change', function() {
+    document.getElementById('entryStaffRow').style.display = this.value === 'reimbursement' ? '' : 'none';
+  });
+});
+
+// ============================================================
+// UPLOAD & AI EXTRACTION
+// ============================================================
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag'); handleFiles(e.dataTransfer.files); });
+
+async function handleFiles(files) {
+  const cfg = getLLMConfig();
+  if (cfg.provider === 'claude' && !cfg.key) {
+    toast('Please enter your Claude API key in the sidebar', 'error'); return;
+  }
+  const pclass    = currentPClass;
+  const staffName = document.getElementById('reimbStaffName').value.trim();
+  for (const file of files) {
+    if (file.type === 'application/pdf' || file.type.startsWith('image/')) {
+      await extractFromFile(file, cfg, pclass, staffName);
+    }
+  }
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// ============================================================
+// UNIFIED EXTRACTION (Claude + OpenAI-compat local LLMs)
+// ============================================================
+const EXTRACT_PROMPT = (today) => `You are a financial data extractor. Analyze this payment screenshot, bank statement, or PDF and extract ALL transactions.
+
+Return ONLY a JSON array with this exact structure (no markdown, no explanation):
+[
+  {
+    "date": "YYYY-MM-DD",
+    "description": "merchant or description",
+    "amount": 123.45,
+    "type": "debit or credit",
+    "account": "account name if visible",
+    "category": "one of: Salary/Payroll, Sales Revenue, Rent/Lease, Utilities, Supplies, Marketing, Travel, Software/SaaS, Professional Services, Insurance, Taxes, Meals/Entertainment, Equipment, Bank Fees, Other",
+    "notes": "reference numbers or extra info"
+  }
+]
+
+Rules:
+- Amounts are positive numbers; use type field for direction
+- Debits/payments/expenses = "debit"; Credits/income/deposits = "credit"
+- If date unclear, use today: ${today}`;
+
+async function extractFromFile(file, cfg, pclass = 'bill', staffName = '') {
+  const container = document.getElementById('extractedList');
+  const loadId = uid();
+  const isPDF = file.type === 'application/pdf';
+  const providerLabel = cfg.provider === 'claude' ? 'Claude' : cfg.model || cfg.provider;
+
+  container.insertAdjacentHTML('beforeend', `
+    <div class="processing" id="proc-${loadId}">
+      <h4><span class="spinner"></span> Processing <em>${file.name}</em> with ${providerLabel}...</h4>
+    </div>
+  `);
+
+  try {
+    const b64 = await fileToBase64(file);
+    const today = new Date().toISOString().slice(0, 10);
+    const prompt = EXTRACT_PROMPT(today);
+
+    let responseText;
+
+    if (cfg.provider === 'claude') {
+      // ── Anthropic native format ──
+      const contentBlock = isPDF
+        ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
+        : { type: 'image',    source: { type: 'base64', media_type: file.type,          data: b64 } };
+
+      const res = await fetch(`${cfg.base}/v1/messages`, {
+        method: 'POST',
+        headers: {
+          'x-api-key': cfg.key,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: cfg.model || 'claude-opus-4-5',
+          max_tokens: 4000,
+          messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: prompt }] }]
+        })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+      responseText = data.content[0].text.trim();
+
+    } else {
+      // ── OpenAI-compatible format (Ollama, LM Studio, custom) ──
+      if (isPDF) throw new Error('PDF extraction requires Claude. For local LLMs, upload a screenshot instead.');
+
+      const imageUrl = `data:${file.type};base64,${b64}`;
+      const endpoint = `${cfg.base}/v1/chat/completions`;
+
+      const headers = { 'content-type': 'application/json' };
+      if (cfg.key) headers['Authorization'] = `Bearer ${cfg.key}`;
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: cfg.model,
+          max_tokens: 4000,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image_url', image_url: { url: imageUrl } },
+              { type: 'text',      text: prompt }
+            ]
+          }]
+        })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(typeof data.error === 'string' ? data.error : data.error.message);
+      responseText = data.choices[0].message.content.trim();
+    }
+
+    // Parse JSON from response
+    const match = responseText.match(/\[[\s\S]*\]/);
+    const extracted = JSON.parse(match ? match[0] : responseText);
+    renderExtracted(loadId, file.name, extracted, pclass, staffName);
+
+  } catch(err) {
+    document.getElementById('proc-' + loadId).innerHTML = `
+      <h4 style="color:var(--debit)">❌ Failed: ${file.name}</h4>
+      <p style="color:var(--muted);font-size:12px;margin-top:8px">${err.message}</p>
+    `;
+    toast('Error: ' + err.message, 'error');
+  }
+}
+
+const CATS = ['Salary/Payroll','Sales Revenue','Rent/Lease','Utilities','Supplies','Marketing','Travel','Software/SaaS','Professional Services','Insurance','Taxes','Meals/Entertainment','Equipment','Bank Fees','Other'];
+const catOptions = CATS.map(c => `<option value="${c}">${c}</option>`).join('');
+
+function renderExtracted(loadId, filename, items, pclass = 'bill', staffName = '') {
+  const el = document.getElementById('proc-' + loadId);
+  if (!items.length) {
+    el.innerHTML = `<h4>⚠ No transactions found in ${filename}</h4>`;
+    return;
+  }
+
+  const pclassLabel = pclass === 'reimbursement'
+    ? `💼 Reimbursement${staffName ? ' · ' + staffName : ''}`
+    : '🧾 Bill to Company';
+  const pclassColor = pclass === 'reimbursement' ? 'var(--accent2)' : 'var(--debit)';
+
+  const itemsHtml = items.map((item, i) => `
+    <div class="extracted-item" id="ei-${loadId}-${i}">
+      <div class="ei-info">
+        <div class="ei-row">
+          <input type="date" value="${item.date}" data-field="date" data-idx="${i}" data-lid="${loadId}">
+          <input type="text" value="${item.description}" placeholder="Description" data-field="description" data-idx="${i}" data-lid="${loadId}" style="flex:2">
+          <input type="number" value="${item.amount}" step="0.01" placeholder="Amount" data-field="amount" data-idx="${i}" data-lid="${loadId}" style="max-width:110px">
+          <select data-field="type" data-idx="${i}" data-lid="${loadId}">
+            <option value="debit" ${item.type==='debit'?'selected':''}>Debit</option>
+            <option value="credit" ${item.type==='credit'?'selected':''}>Credit</option>
+          </select>
+        </div>
+        <div class="ei-row">
+          <input type="text" value="${item.account||''}" placeholder="Account" data-field="account" data-idx="${i}" data-lid="${loadId}">
+          <select data-field="category" data-idx="${i}" data-lid="${loadId}">${CATS.map(c=>`<option value="${c}" ${c===item.category?'selected':''}>${c}</option>`).join('')}</select>
+          <input type="text" value="${item.notes||''}" placeholder="Notes / Ref" data-field="notes" data-idx="${i}" data-lid="${loadId}" style="flex:2">
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  el.innerHTML = `
+    <h4 style="margin-bottom:8px">✅ Found ${items.length} transaction(s) in <em>${filename}</em></h4>
+    <div style="font-size:12px;color:${pclassColor};margin-bottom:12px">Tagged as: <strong>${pclassLabel}</strong></div>
+    ${itemsHtml}
+    <div style="display:flex;gap:10px;margin-top:12px">
+      <button class="btn btn-success" onclick="importAll('${loadId}', ${items.length}, '${pclass}', '${staffName.replace(/'/g,"\\'")}')">Import All (${items.length})</button>
+      <button class="btn btn-outline" onclick="document.getElementById('proc-${loadId}').remove()">Discard</button>
+    </div>
+  `;
+
+  el.querySelectorAll('[data-field]').forEach(input => {
+    input.addEventListener('change', e => {
+      const idx = parseInt(e.target.dataset.idx);
+      const field = e.target.dataset.field;
+      items[idx][field] = field === 'amount' ? parseFloat(e.target.value) : e.target.value;
+    });
+  });
+
+  toast(`Extracted ${items.length} transactions from ${filename}`, 'success');
+}
+
+function importAll(loadId, count, pclass = 'bill', staffName = '') {
+  const el = document.getElementById('proc-' + loadId);
+  const inputs = el.querySelectorAll('[data-field]');
+  const map = {};
+  inputs.forEach(inp => {
+    const idx = parseInt(inp.dataset.idx);
+    if (!map[idx]) map[idx] = {};
+    map[idx][inp.dataset.field] = inp.dataset.field === 'amount' ? parseFloat(inp.value) : inp.value;
+  });
+
+  const newTxs = [];
+  Object.values(map).forEach(item => {
+    if (!item.date || !item.amount || !item.description) return;
+    const newTx = {
+      id: uid(), date: item.date, amount: item.amount, type: item.type || 'debit',
+      account: item.account || '', description: item.description,
+      category: item.category || 'Other', notes: item.notes || '', ref: '',
+      paymentClass: pclass, staffName: staffName, source: 'ai-extracted'
+    };
+    transactions.push(newTx);
+    newTxs.push(newTx);
+  });
+
+  saveData();
+  newTxs.forEach(t => sbUpsert('transactions', toTxRow(t)));
+  el.innerHTML = `<h4 style="color:var(--credit)">✅ ${newTxs.length} transactions imported!</h4>`;
+  setTimeout(() => el.remove(), 2000);
+  toast(`Imported ${newTxs.length} transactions`, 'success');
+}
+
+// ============================================================
+// EDIT / DELETE
+// ============================================================
+function toggleEditStaff() {
+  const v = document.getElementById('editPClass').value;
+  document.getElementById('editStaffRow').style.display = v === 'reimbursement' ? '' : 'none';
+}
+
+function openEdit(id) {
+  const tx = transactions.find(t => t.id === id);
+  if (!tx) return;
+  editingId = id;
+  document.getElementById('editDate').value = tx.date;
+  document.getElementById('editAmount').value = tx.amount;
+  document.getElementById('editType').value = tx.type;
+  document.getElementById('editAccount').value = tx.account || '';
+  document.getElementById('editDesc').value = tx.description;
+  document.getElementById('editCat').value = tx.category;
+  document.getElementById('editRef').value = tx.ref || '';
+  document.getElementById('editNotes').value = tx.notes || '';
+  document.getElementById('editPClass').value = tx.paymentClass || 'bill';
+  document.getElementById('editStaffName').value = tx.staffName || '';
+  toggleEditStaff();
+  document.getElementById('editModal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('editModal').classList.remove('open');
+  editingId = null;
+}
+
+function saveEdit() {
+  const tx = transactions.find(t => t.id === editingId);
+  if (!tx) return;
+  tx.date        = document.getElementById('editDate').value;
+  tx.amount      = parseFloat(document.getElementById('editAmount').value);
+  tx.type        = document.getElementById('editType').value;
+  tx.account     = document.getElementById('editAccount').value;
+  tx.description = document.getElementById('editDesc').value;
+  tx.category    = document.getElementById('editCat').value;
+  tx.ref         = document.getElementById('editRef').value;
+  tx.notes       = document.getElementById('editNotes').value;
+  tx.paymentClass = document.getElementById('editPClass').value;
+  tx.staffName   = document.getElementById('editPClass').value === 'reimbursement'
+                    ? document.getElementById('editStaffName').value : '';
+  saveData();
+  sbUpsert('transactions', toTxRow(tx));
+  closeModal();
+  refreshLedger();
+  toast('Transaction updated', 'success');
+}
+
+function deleteTx(id) {
+  if (!confirm('Delete this transaction?')) return;
+  transactions = transactions.filter(t => t.id !== id);
+  saveData();
+  sbDelete('transactions', id);
+  closeModal();
+  refreshLedger();
+  toast('Transaction deleted', 'success');
+}
+
+// ============================================================
+// REPORTS
+// ============================================================
+function populateYearFilter() {
+  const years = [...new Set(transactions.map(t => t.date.slice(0,4)))].sort().reverse();
+  const thisYear = new Date().getFullYear().toString();
+  if (!years.includes(thisYear)) years.unshift(thisYear);
+  const sel = document.getElementById('reportYear');
+  const cur = sel.value || thisYear;
+  sel.innerHTML = years.map(y => `<option value="${y}" ${y===cur?'selected':''}>${y}</option>`).join('');
+}
+
+function refreshReports() {
+  const year = parseInt(document.getElementById('reportYear').value);
+  const month = parseInt(document.getElementById('reportMonth').value);
+
+  let txs = transactions.filter(t => {
+    const d = new Date(t.date + 'T00:00:00');
+    if (d.getFullYear() !== year) return false;
+    if (month !== 0 && d.getMonth() + 1 !== month) return false;
+    return true;
+  });
+
+  const income = txs.filter(t=>t.type==='credit').reduce((s,t)=>s+t.amount,0);
+  const expenses = txs.filter(t=>t.type==='debit').reduce((s,t)=>s+t.amount,0);
+  const profit = income - expenses;
+
+  document.getElementById('plRevenue').textContent = fmt(income);
+  document.getElementById('plExpenses').textContent = fmt(expenses);
+  const plEl = document.getElementById('plProfit');
+  plEl.textContent = fmt(profit);
+  plEl.style.color = profit >= 0 ? 'var(--credit)' : 'var(--debit)';
+
+  // Income breakdown
+  const incCats = {};
+  txs.filter(t=>t.type==='credit').forEach(t => { incCats[t.category] = (incCats[t.category]||0) + t.amount; });
+  const incRows = Object.entries(incCats).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('incomeBreakdown').innerHTML = incRows.length
+    ? incRows.map(([c,a]) => `<tr><td><span class="cat-badge">${c}</span></td><td style="color:var(--credit)">${fmt(a)}</td><td style="color:var(--muted)">${income?((a/income)*100).toFixed(1):'0'}%</td></tr>`).join('')
+    : '<tr><td colspan="3" class="empty">No income data</td></tr>';
+
+  // Expense breakdown
+  const expCats = {};
+  txs.filter(t=>t.type==='debit').forEach(t => { expCats[t.category] = (expCats[t.category]||0) + t.amount; });
+  const expRows = Object.entries(expCats).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('expenseBreakdown').innerHTML = expRows.length
+    ? expRows.map(([c,a]) => `<tr><td><span class="cat-badge">${c}</span></td><td style="color:var(--debit)">${fmt(a)}</td><td style="color:var(--muted)">${expenses?((a/expenses)*100).toFixed(1):'0'}%</td></tr>`).join('')
+    : '<tr><td colspan="3" class="empty">No expense data</td></tr>';
+
+  // Monthly trend
+  const monthly = {};
+  transactions.filter(t => new Date(t.date+'T00:00:00').getFullYear() === year).forEach(t => {
+    const m = new Date(t.date+'T00:00:00').getMonth();
+    if (!monthly[m]) monthly[m] = { in: 0, out: 0 };
+    if (t.type === 'credit') monthly[m].in += t.amount;
+    else monthly[m].out += t.amount;
+  });
+
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const allMonths = Object.keys(monthly).map(Number).sort((a,b)=>a-b);
+  document.getElementById('monthlyTbody').innerHTML = allMonths.length
+    ? allMonths.map(m => {
+        const n = monthly[m].in - monthly[m].out;
+        return `<tr>
+          <td>${monthNames[m]}</td>
+          <td style="color:var(--credit)">${fmt(monthly[m].in)}</td>
+          <td style="color:var(--debit)">${fmt(monthly[m].out)}</td>
+          <td style="color:${n>=0?'var(--credit)':'var(--debit)'};font-weight:600">${fmtSigned(n)}</td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="4" class="empty">No data for this period</td></tr>';
+}
+
+// ============================================================
+// EXPORT CSV
+// ============================================================
+function exportCSV() {
+  if (!transactions.length) { toast('No transactions to export', 'error'); return; }
+  const headers = ['Date','Description','Account','Category','Payment Class','Staff Name','Type','Amount','Reference','Notes'];
+  const rows = transactions.sort((a,b)=>b.date.localeCompare(a.date)).map(t => [
+    t.date, `"${t.description.replace(/"/g,'""')}"`, t.account||'', t.category,
+    t.paymentClass === 'reimbursement' ? 'Reimbursement to Staff' : 'Bill to Company',
+    t.staffName||'', t.type,
+    t.amount.toFixed(2), t.ref||'', `"${(t.notes||'').replace(/"/g,'""')}"`
+  ]);
+  const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `moja_transactions_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+  toast('CSV exported!', 'success');
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+let toastTimer;
+function toast(msg, type = 'success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ============================================================
+// PAYROLL MODULE
+// ============================================================
+let employees   = [];
+let leaveRecords = [];
+let payrollRuns = [];
+let editingEmpId   = null;
+
+// ── Johor 2026 Public Holidays ──
+const JOHOR_PH_2026 = [
+  { date:'2026-01-01', name:"New Year's Day",                    type:'Federal' },
+  { date:'2026-01-22', name:'Hol Almarhum Sultan Iskandar',      type:'Johor' },
+  { date:'2026-01-27', name:'Israk Mikraj 1447H',                type:'Johor' },
+  { date:'2026-02-17', name:'Chinese New Year',                  type:'Federal' },
+  { date:'2026-02-18', name:'Chinese New Year (2nd Day)',        type:'Federal' },
+  { date:'2026-03-06', name:'Nuzul Al-Quran 1447H',             type:'Johor' },
+  { date:'2026-03-20', name:'Hari Raya Aidilfitri',             type:'Federal' },
+  { date:'2026-03-21', name:'Hari Raya Aidilfitri (2nd Day)',   type:'Federal' },
+  { date:'2026-03-23', name:"Sultan of Johor's Birthday",       type:'Johor' },
+  { date:'2026-05-01', name:"Labour Day",                       type:'Federal' },
+  { date:'2026-05-05', name:'Wesak Day',                        type:'Federal' },
+  { date:'2026-05-27', name:'Hari Raya Aidiladha',              type:'Federal' },
+  { date:'2026-06-06', name:"Agong's Birthday",                 type:'Federal' },
+  { date:'2026-07-18', name:'Awal Muharram 1448H',              type:'Federal' },
+  { date:'2026-08-31', name:'National Day',                     type:'Federal' },
+  { date:'2026-09-15', name:"Maulidur Rasul (Prophet's Birthday)",type:'Federal'},
+  { date:'2026-09-16', name:'Malaysia Day',                     type:'Federal' },
+  { date:'2026-10-20', name:'Deepavali',                        type:'Federal' },
+  { date:'2026-12-25', name:'Christmas Day',                    type:'Federal' },
+];
+
+const PH_SET_2026 = new Set(JOHOR_PH_2026.map(h => h.date));
+
+// ── Malaysia Statutory Calculations ──
+function calcEPF(gross, age60 = false) {
+  const emp = age60 ? 0.055 : 0.11;
+  const er  = gross > 5000 ? 0.12 : (age60 ? 0.04 : 0.13);
+  return { employee: Math.round(gross * emp * 100) / 100, employer: Math.round(gross * er * 100) / 100 };
+}
+
+// SOCSO table (simplified) — wages capped at RM5,000
+function calcSOCSO(gross) {
+  if (gross > 5000) return { employee: 0, employer: 0 }; // exempt
+  // Using simplified rates; actual uses lookup table
+  const employee = Math.min(gross * 0.005, 19.75);
+  const employer = Math.min(gross * 0.0175, 69.05);
+  return { employee: Math.round(employee * 100)/100, employer: Math.round(employer * 100)/100 };
+}
+
+// EIS capped at RM4,000 insurable wage
+function calcEIS(gross) {
+  const insurable = Math.min(gross, 4000);
+  const rate = 0.002; // 0.2%
+  return { employee: Math.round(insurable * rate * 100)/100, employer: Math.round(insurable * rate * 100)/100 };
+}
+
+// Simplified PCB/MTD — monthly deduction
+function calcPCB(annualGross, marital, spouseNotWorking, children, residency) {
+  if (residency === 'non-resident') return Math.round(annualGross * 0.28 / 12 * 100) / 100;
+  let relief = 9000; // individual relief
+  if (marital === 'married-spouse-not-working') relief += 4000;
+  if (marital.startsWith('married')) relief += children * 2000;
+  const chargeable = Math.max(annualGross - relief, 0);
+  let tax = 0;
+  const brackets = [
+    [5000,0],[15000,0.01],[15000,0.03],[15000,0.08],[20000,0.13],
+    [30000,0.21],[150000,0.24],[150000,0.245],[200000,0.25],[400000,0.26],[Infinity,0.28]
+  ];
+  let remaining = chargeable;
+  for (const [band, rate] of brackets) {
+    if (remaining <= 0) break;
+    const taxable = Math.min(remaining, band);
+    tax += taxable * rate;
+    remaining -= taxable;
+  }
+  return Math.max(Math.round(tax / 12 * 100) / 100, 0);
+}
+
+// OT hourly rate (EA 1955): ORP = basic / 26 ; HRP = ORP / dailyHours
+function calcOT(basic, dailyHours, otEntries) {
+  const orp = basic / 26;
+  const hrp = orp / dailyHours;
+  let total = 0;
+  for (const ot of otEntries) {
+    const mult = ot.type === 'weekday' ? 1.5 : ot.type === 'restday' ? 2 : 3; // PH = 3
+    total += hrp * mult * (ot.hours || 0);
+  }
+  return Math.round(total * 100) / 100;
+}
+
+// Working days in a month (Mon–Fri, minus PH)
+function workingDaysInMonth(year, month) {
+  const days = new Date(year, month, 0).getDate();
+  let count = 0;
+  for (let d = 1; d <= days; d++) {
+    const dt = new Date(year, month - 1, d);
+    const dow = dt.getDay();
+    const ds  = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    if (dow > 0 && dow < 6 && !PH_SET_2026.has(ds)) count++;
+  }
+  return count;
+}
+
+// Years of service from join date
+function yearsOfService(joinDate) {
+  const j = new Date(joinDate);
+  const n = new Date();
+  return (n - j) / (365.25 * 24 * 3600 * 1000);
+}
+
+// Leave entitlement (EA 1955)
+function leaveEntitlement(joinDate) {
+  const yrs = yearsOfService(joinDate);
+  return {
+    annual:  yrs < 2 ? 8 : yrs < 5 ? 12 : 16,
+    medical: yrs < 2 ? 14 : yrs < 5 ? 18 : 22,
+  };
+}
+
+// ── Employee CRUD ──
+function loadPayrollData() {
+  try { employees    = JSON.parse(localStorage.getItem('moja_employees')   || '[]'); } catch(e) { employees = []; }
+  try { leaveRecords = JSON.parse(localStorage.getItem('moja_leaves')      || '[]'); } catch(e) { leaveRecords = []; }
+  try { payrollRuns  = JSON.parse(localStorage.getItem('moja_payrollruns') || '[]'); } catch(e) { payrollRuns = []; }
+}
+
+function savePayrollData() {
+  localStorage.setItem('moja_employees',    JSON.stringify(employees));
+  localStorage.setItem('moja_leaves',       JSON.stringify(leaveRecords));
+  localStorage.setItem('moja_payrollruns',  JSON.stringify(payrollRuns));
+}
+
+function empInitials(name) {
+  return (name||'?').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+}
+
+function refreshEmployeeList() {
+  const el = document.getElementById('empList');
+  if (!employees.length) {
+    el.innerHTML = '<div class="empty" style="padding:48px;text-align:center;color:var(--muted)">No employees yet</div>';
+    return;
+  }
+  el.innerHTML = employees.map(e => {
+    const ent = leaveEntitlement(e.joinDate);
+    return `
+    <div class="emp-card ${e.status==='inactive'?'emp-inactive':''}" onclick="openEmpModal('${e.id}')">
+      <div class="emp-avatar">${empInitials(e.name)}</div>
+      <div class="emp-info">
+        <div class="emp-name">${e.name} ${e.status==='inactive'?'<span style="font-size:11px;color:var(--muted)">(Inactive)</span>':''}</div>
+        <div class="emp-sub">${e.position||'—'} &nbsp;·&nbsp; ${e.department||'—'} &nbsp;·&nbsp; ${e.employeeId||'—'}</div>
+        <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">
+          <span class="stat-pill">🗓 Joined ${e.joinDate}</span>
+          <span class="stat-pill">AL: ${ent.annual}d</span>
+          <span class="stat-pill">MC: ${ent.medical}d</span>
+          <span class="stat-pill">🏦 ${e.bank||'—'}</span>
+        </div>
+      </div>
+      <div class="emp-salary">RM ${Number(e.basicSalary).toLocaleString('en-MY',{minimumFractionDigits:2})}</div>
+    </div>`;
+  }).join('');
+}
+
+function openEmpModal(id) {
+  editingEmpId = id || null;
+  const e = id ? employees.find(x => x.id === id) : {};
+  document.getElementById('empModalTitle').textContent = id ? 'Edit Employee' : 'Add Employee';
+  document.getElementById('empDeleteBtn').style.display = id ? '' : 'none';
+
+  const fields = ['empName','empId','empIC','empPosition','empDept','empJoinDate','empSalary',
+    'empWorkDays','empDailyHours','empResidency','empMarital','empChildren',
+    'empEPF','empSOCSO','empTax','empBank','empBankAcc','empStatus'];
+  const map = {
+    empName:'name', empId:'employeeId', empIC:'ic', empPosition:'position', empDept:'department',
+    empJoinDate:'joinDate', empSalary:'basicSalary', empWorkDays:'workDays', empDailyHours:'dailyHours',
+    empResidency:'residency', empMarital:'marital', empChildren:'children',
+    empEPF:'epfNo', empSOCSO:'socsoNo', empTax:'taxNo', empBank:'bank', empBankAcc:'bankAcc',
+    empStatus:'status'
+  };
+  fields.forEach(f => {
+    const el = document.getElementById(f);
+    if (el) el.value = (e && e[map[f]] !== undefined) ? e[map[f]] : (el.tagName==='SELECT'?el.options[0]?.value:'');
+  });
+  if (!id) {
+    document.getElementById('empJoinDate').value = new Date().toISOString().slice(0,10);
+    document.getElementById('empStatus').value = 'active';
+    document.getElementById('empChildren').value = '0';
+  }
+  document.getElementById('empModal').classList.add('open');
+}
+
+function closeEmpModal() { document.getElementById('empModal').classList.remove('open'); editingEmpId = null; }
+
+function saveEmployee() {
+  const name = document.getElementById('empName').value.trim();
+  const salary = parseFloat(document.getElementById('empSalary').value);
+  const joinDate = document.getElementById('empJoinDate').value;
+  if (!name || !salary || !joinDate) { toast('Name, Salary, and Join Date are required', 'error'); return; }
+
+  const data = {
+    name, salary,
+    employeeId: document.getElementById('empId').value.trim(),
+    ic:         document.getElementById('empIC').value.trim(),
+    position:   document.getElementById('empPosition').value.trim(),
+    department: document.getElementById('empDept').value.trim(),
+    joinDate,
+    basicSalary: salary,
+    workDays:    parseFloat(document.getElementById('empWorkDays').value),
+    dailyHours:  parseInt(document.getElementById('empDailyHours').value),
+    residency:   document.getElementById('empResidency').value,
+    marital:     document.getElementById('empMarital').value,
+    children:    parseInt(document.getElementById('empChildren').value)||0,
+    epfNo:       document.getElementById('empEPF').value.trim(),
+    socsoNo:     document.getElementById('empSOCSO').value.trim(),
+    taxNo:       document.getElementById('empTax').value.trim(),
+    bank:        document.getElementById('empBank').value.trim(),
+    bankAcc:     document.getElementById('empBankAcc').value.trim(),
+    status:      document.getElementById('empStatus').value,
+  };
+
+  let savedEmp;
+  if (editingEmpId) {
+    const idx = employees.findIndex(e => e.id === editingEmpId);
+    employees[idx] = { ...employees[idx], ...data };
+    savedEmp = employees[idx];
+  } else {
+    savedEmp = { id: uid(), ...data };
+    employees.push(savedEmp);
+  }
+  savePayrollData();
+  sbUpsert('employees', toEmpRow(savedEmp));
+  closeEmpModal();
+  refreshEmployeeList();
+  toast('Employee saved', 'success');
+}
+
+function deleteEmployee() {
+  if (!confirm('Delete this employee? Leave records will remain.')) return;
+  const id = editingEmpId;
+  employees = employees.filter(e => e.id !== id);
+  savePayrollData();
+  sbDelete('employees', id);
+  closeEmpModal();
+  refreshEmployeeList();
+  toast('Employee deleted', 'success');
+}
+
+// ── Leave Management ──
+function switchLeaveTab(tab, btn) {
+  document.querySelectorAll('[id^="leaveTab-"]').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('#panel-leave .tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('leaveTab-' + tab).classList.add('active');
+  btn.classList.add('active');
+  if (tab === 'applications') refreshLeaveApplications();
+  if (tab === 'balances')     refreshLeaveBalances();
+  if (tab === 'holidays')     renderHolidays();
+}
+
+function refreshLeaveApplications() {
+  const tbody = document.getElementById('leaveAppTbody');
+  if (!leaveRecords.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">No leave applications</td></tr>'; return; }
+  const sorted = [...leaveRecords].sort((a,b) => b.from.localeCompare(a.from));
+  tbody.innerHTML = sorted.map(r => {
+    const emp = employees.find(e => e.id === r.employeeId);
+    return `<tr>
+      <td>${emp ? emp.name : '—'}</td>
+      <td><span class="leave-chip leave-${r.type}">${r.type.charAt(0).toUpperCase()+r.type.slice(1)}</span></td>
+      <td>${r.from}</td><td>${r.to}</td><td>${r.days}</td>
+      <td><span class="leave-chip leave-${r.status}">${r.status}</span></td>
+      <td style="color:var(--muted);font-size:12px">${r.reason||'—'}</td>
+      <td><button class="btn btn-outline btn-sm" onclick="deleteLeave('${r.id}')">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function refreshLeaveBalances() {
+  const tbody = document.getElementById('leaveBalTbody');
+  if (!employees.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">No employees</td></tr>'; return; }
+  tbody.innerHTML = employees.filter(e => e.status === 'active').map(e => {
+    const ent = leaveEntitlement(e.joinDate);
+    const yrs = yearsOfService(e.joinDate).toFixed(1);
+    const approved = leaveRecords.filter(r => r.employeeId === e.id && r.status === 'approved');
+    const alUsed = approved.filter(r => r.type === 'annual').reduce((s,r)=>s+r.days,0);
+    const mcUsed = approved.filter(r => r.type === 'medical').reduce((s,r)=>s+r.days,0);
+    return `<tr>
+      <td><strong>${e.name}</strong><br><span style="font-size:11px;color:var(--muted)">${e.position||''}</span></td>
+      <td>${yrs} yrs</td>
+      <td>${ent.annual} days</td>
+      <td>${alUsed}</td>
+      <td style="color:${ent.annual-alUsed<0?'var(--debit)':'var(--credit)'};font-weight:600">${ent.annual-alUsed}</td>
+      <td>${ent.medical} days</td>
+      <td>${mcUsed}</td>
+      <td style="color:${ent.medical-mcUsed<0?'var(--debit)':'var(--credit)'};font-weight:600">${ent.medical-mcUsed}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderHolidays() {
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  document.getElementById('holidayTbody').innerHTML = JOHOR_PH_2026.map(h => {
+    const dow = days[new Date(h.date+'T00:00:00').getDay()];
+    return `<tr><td>${h.date}</td><td>${dow}</td><td>${h.name}</td>
+      <td><span class="ph-badge">${h.type}</span></td></tr>`;
+  }).join('');
+}
+
+function openLeaveModal() {
+  const sel = document.getElementById('leaveEmpSel');
+  sel.innerHTML = employees.filter(e=>e.status==='active').map(e=>`<option value="${e.id}">${e.name}</option>`).join('');
+  if (!sel.options.length) { toast('Add employees first', 'error'); return; }
+  document.getElementById('leaveFrom').value = new Date().toISOString().slice(0,10);
+  document.getElementById('leaveTo').value   = new Date().toISOString().slice(0,10);
+  document.getElementById('leaveModal').classList.add('open');
+}
+function closeLeaveModal() { document.getElementById('leaveModal').classList.remove('open'); }
+
+function workingDaysBetween(from, to) {
+  let count = 0;
+  const cur = new Date(from + 'T00:00:00');
+  const end = new Date(to + 'T00:00:00');
+  while (cur <= end) {
+    const dow = cur.getDay();
+    const ds  = cur.toISOString().slice(0,10);
+    if (dow > 0 && dow < 6 && !PH_SET_2026.has(ds)) count++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+}
+
+function saveLeave() {
+  const empId  = document.getElementById('leaveEmpSel').value;
+  const type   = document.getElementById('leaveType').value;
+  const from   = document.getElementById('leaveFrom').value;
+  const to     = document.getElementById('leaveTo').value;
+  const status = document.getElementById('leaveStatus').value;
+  const reason = document.getElementById('leaveReason').value.trim();
+  if (!empId || !from || !to) { toast('Please fill all required fields', 'error'); return; }
+  if (to < from) { toast('End date must be ≥ start date', 'error'); return; }
+  const days = workingDaysBetween(from, to);
+  const newLeave = { id: uid(), employeeId: empId, type, from, to, days, status, reason };
+  leaveRecords.push(newLeave);
+  savePayrollData();
+  sbUpsert('leave_records', toLeaveRow(newLeave));
+  closeLeaveModal();
+  refreshLeaveApplications();
+  toast(`${days} working day(s) leave recorded`, 'success');
+}
+
+function deleteLeave(id) {
+  if (!confirm('Remove this leave record?')) return;
+  leaveRecords = leaveRecords.filter(r => r.id !== id);
+  savePayrollData();
+  sbDelete('leave_records', id);
+  refreshLeaveApplications();
+  toast('Leave removed', 'success');
+}
+
+// ── Payroll Processing ──
+function generatePayroll() {
+  const month = parseInt(document.getElementById('payMonth').value);
+  const year  = parseInt(document.getElementById('payYear').value);
+  const active = employees.filter(e => e.status === 'active');
+  if (!active.length) { toast('No active employees', 'error'); return; }
+
+  const existing = payrollRuns.find(r => r.month === month && r.year === year && r.status === 'finalized');
+  if (existing) { toast('Payroll for this month is already finalized', 'error'); return; }
+
+  const wdMonth = workingDaysInMonth(year, month);
+  const monthStr = `${year}-${String(month).padStart(2,'0')}`;
+
+  // Get approved unpaid leaves for this month
+  function unpaidDays(empId) {
+    return leaveRecords.filter(r =>
+      r.employeeId === empId && r.status === 'approved' && r.type === 'unpaid' &&
+      (r.from.startsWith(monthStr) || r.to.startsWith(monthStr))
+    ).reduce((s,r) => s + r.days, 0);
+  }
+
+  const entries = active.map(e => {
+    const basic    = parseFloat(e.basicSalary);
+    const unpaid   = unpaidDays(e.id);
+    const dailyRate = basic / 26;
+    const unpaidAmt = Math.round(unpaidDays(e.id) * dailyRate * 100) / 100;
+    const grossBeforeOT = basic - unpaidAmt;
+
+    // OT entries: default empty (user can edit before finalizing)
+    const otEntries = [];
+    const otAmt = 0;
+    const gross = Math.round((grossBeforeOT + otAmt) * 100) / 100;
+
+    const age60 = false; // could derive from IC if available
+    const epf   = calcEPF(gross, age60);
+    const socso = calcSOCSO(gross);
+    const eis   = calcEIS(gross);
+    const pcb   = calcPCB(gross * 12, e.marital, e.marital === 'married-spouse-not-working', e.children || 0, e.residency);
+
+    const totalDeductions = epf.employee + socso.employee + eis.employee + pcb;
+    const netPay = Math.round((gross - totalDeductions) * 100) / 100;
+    const employerCost = gross + epf.employer + socso.employer + eis.employer;
+
+    return {
+      employeeId: e.id, employeeName: e.name, position: e.position,
+      basicSalary: basic, unpaidDays: unpaid, unpaidAmt,
+      otHours: 0, otAmt,
+      allowances: 0,
+      gross,
+      epfEmployee: epf.employee, epfEmployer: epf.employer,
+      socsoEmployee: socso.employee, socsoEmployer: socso.employer,
+      eisEmployee: eis.employee, eisEmployer: eis.employer,
+      pcb,
+      totalDeductions: Math.round(totalDeductions * 100)/100,
+      netPay,
+      employerCost: Math.round(employerCost * 100)/100,
+    };
+  });
+
+  renderPayrollWorkspace({ id: uid(), month, year, entries, status: 'draft' });
+}
+
+function renderPayrollWorkspace(run) {
+  const monthNames = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
+  const totalGross = run.entries.reduce((s,e)=>s+e.gross,0);
+  const totalNet   = run.entries.reduce((s,e)=>s+e.netPay,0);
+  const totalCost  = run.entries.reduce((s,e)=>s+e.employerCost,0);
+  const totalEPFer = run.entries.reduce((s,e)=>s+e.epfEmployer,0);
+  const totalSOCSer= run.entries.reduce((s,e)=>s+e.socsoEmployer,0);
+  const totalEISer = run.entries.reduce((s,e)=>s+e.eisEmployer,0);
+
+  const ws = document.getElementById('payrollWorkspace');
+  ws.innerHTML = `
+    <div class="page-header" style="margin-bottom:16px">
+      <h3>${monthNames[run.month]} ${run.year} — Draft Payroll</h3>
+      <div style="display:flex;gap:8px">
+        ${run.status==='draft'?`<button class="btn btn-success" onclick="finalizePayroll('${run.id}')">✅ Finalize & Post to Expenses</button>`:'<span style="color:var(--credit);font-weight:600">✅ Finalized</span>'}
+      </div>
+    </div>
+
+    <div class="payroll-summary-grid">
+      <div class="mini-card"><div class="lbl">Total Gross</div><div class="val">RM ${fmt2(totalGross)}</div></div>
+      <div class="mini-card"><div class="lbl">Total Net Pay</div><div class="val" style="color:var(--credit)">RM ${fmt2(totalNet)}</div></div>
+      <div class="mini-card"><div class="lbl">Employer Contributions</div><div class="val" style="color:var(--debit)">RM ${fmt2(totalCost-totalGross)}</div></div>
+      <div class="mini-card"><div class="lbl">Total Employer Cost</div><div class="val">RM ${fmt2(totalCost)}</div></div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-header">
+        <h3>Payroll Details</h3>
+        <span style="font-size:12px;color:var(--muted)">${run.entries.length} employee(s) &nbsp;·&nbsp; EPF | SOCSO | EIS | PCB (MTD)</span>
+      </div>
+      <div style="overflow-x:auto">
+      <table class="pay-table">
+        <thead><tr>
+          <th>Employee</th><th>Basic (RM)</th><th>Allowance</th><th>OT</th><th>Gross</th>
+          <th>EPF (ee)</th><th>SOCSO (ee)</th><th>EIS (ee)</th><th>PCB</th>
+          <th>Total Deduct</th><th style="color:var(--credit)">Net Pay</th>
+          <th>EPF (er)</th><th>SOCSO (er)</th><th>EIS (er)</th><th>Total Employer</th>
+          <th></th>
+        </tr></thead>
+        <tbody>
+        ${run.entries.map((e,i) => `
+          <tr>
+            <td><strong>${e.employeeName}</strong><br><span style="font-size:11px;color:var(--muted)">${e.position||''}</span></td>
+            <td>
+              ${run.status==='draft'
+                ? `<input type="number" value="${e.basicSalary}" step="0.01" style="width:90px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:12px" onchange="updatePayEntry(${i},'basicSalary',this.value)">`
+                : fmt2(e.basicSalary)}
+            </td>
+            <td>
+              ${run.status==='draft'
+                ? `<input type="number" value="${e.allowances}" step="0.01" style="width:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:12px" onchange="updatePayEntry(${i},'allowances',this.value)">`
+                : fmt2(e.allowances)}
+            </td>
+            <td>
+              ${run.status==='draft'
+                ? `<input type="number" value="${e.otAmt}" step="0.01" style="width:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:12px" onchange="updatePayEntry(${i},'otAmt',this.value)" placeholder="OT amt">`
+                : fmt2(e.otAmt)}
+            </td>
+            <td style="font-weight:600">RM ${fmt2(e.gross)}</td>
+            <td>RM ${fmt2(e.epfEmployee)}</td>
+            <td>RM ${fmt2(e.socsoEmployee)}</td>
+            <td>RM ${fmt2(e.eisEmployee)}</td>
+            <td>RM ${fmt2(e.pcb)}</td>
+            <td style="color:var(--debit)">RM ${fmt2(e.totalDeductions)}</td>
+            <td style="color:var(--credit);font-weight:700">RM ${fmt2(e.netPay)}</td>
+            <td>RM ${fmt2(e.epfEmployer)}</td>
+            <td>RM ${fmt2(e.socsoEmployer)}</td>
+            <td>RM ${fmt2(e.eisEmployer)}</td>
+            <td>RM ${fmt2(e.employerCost)}</td>
+            <td><button class="btn btn-outline btn-sm" onclick="viewSlip(${i})">Slip</button></td>
+          </tr>
+        `).join('')}
+        <tr class="pay-total-row">
+          <td>TOTAL</td>
+          <td>RM ${fmt2(run.entries.reduce((s,e)=>s+e.basicSalary,0))}</td>
+          <td>RM ${fmt2(run.entries.reduce((s,e)=>s+e.allowances,0))}</td>
+          <td>RM ${fmt2(run.entries.reduce((s,e)=>s+e.otAmt,0))}</td>
+          <td>RM ${fmt2(totalGross)}</td>
+          <td>RM ${fmt2(run.entries.reduce((s,e)=>s+e.epfEmployee,0))}</td>
+          <td>RM ${fmt2(run.entries.reduce((s,e)=>s+e.socsoEmployee,0))}</td>
+          <td>RM ${fmt2(run.entries.reduce((s,e)=>s+e.eisEmployee,0))}</td>
+          <td>RM ${fmt2(run.entries.reduce((s,e)=>s+e.pcb,0))}</td>
+          <td>RM ${fmt2(run.entries.reduce((s,e)=>s+e.totalDeductions,0))}</td>
+          <td style="color:var(--credit)">RM ${fmt2(totalNet)}</td>
+          <td>RM ${fmt2(totalEPFer)}</td>
+          <td>RM ${fmt2(totalSOCSer)}</td>
+          <td>RM ${fmt2(totalEISer)}</td>
+          <td>RM ${fmt2(totalCost)}</td>
+          <td></td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    <div style="margin-top:12px;font-size:12px;color:var(--muted)">
+      ⚠ OT field accepts total OT amount (RM). For OT hours, use: (Basic/26/dailyHours) × rate × hours.<br>
+      EPF: Employee 11% / Employer 13% (≤RM5k) or 12% (>RM5k) &nbsp;|&nbsp; SOCSO: 0.5% / 1.75% (cap RM5k) &nbsp;|&nbsp; EIS: 0.2% each (cap RM4k) &nbsp;|&nbsp; PCB: progressive MTD
+    </div>
+  `;
+  ws._run = run;
+
+  function updatePayEntry(idx, field, val) {
+    const entry = ws._run.entries[idx];
+    entry[field] = parseFloat(val) || 0;
+    // Recalculate gross & deductions
+    entry.gross = Math.round((entry.basicSalary - entry.unpaidAmt + entry.allowances + entry.otAmt) * 100) / 100;
+    const emp = employees.find(e => e.id === entry.employeeId) || {};
+    const epf   = calcEPF(entry.gross);
+    const socso = calcSOCSO(entry.gross);
+    const eis   = calcEIS(entry.gross);
+    const pcb   = calcPCB(entry.gross*12, emp.marital||'single', emp.marital==='married-spouse-not-working', emp.children||0, emp.residency||'resident');
+    entry.epfEmployee = epf.employee; entry.epfEmployer = epf.employer;
+    entry.socsoEmployee = socso.employee; entry.socsoEmployer = socso.employer;
+    entry.eisEmployee = eis.employee; entry.eisEmployer = eis.employer;
+    entry.pcb = pcb;
+    entry.totalDeductions = Math.round((epf.employee+socso.employee+eis.employee+pcb)*100)/100;
+    entry.netPay = Math.round((entry.gross - entry.totalDeductions)*100)/100;
+    entry.employerCost = Math.round((entry.gross+epf.employer+socso.employer+eis.employer)*100)/100;
+    setTimeout(() => renderPayrollWorkspace(ws._run), 0);
+  }
+  window.updatePayEntry = updatePayEntry;
+
+  function viewSlip(idx) {
+    const entry = ws._run.entries[idx];
+    const monthNames2 = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
+    const emp = employees.find(e => e.id === entry.employeeId) || {};
+    document.getElementById('slipContent').innerHTML = `
+      <div class="slip-box">
+        <div class="slip-header">
+          <div><strong style="font-size:16px">PAYSLIP</strong><br><span style="color:var(--muted);font-size:12px">${monthNames2[ws._run.month]} ${ws._run.year}</span></div>
+          <div style="text-align:right">
+            <div style="font-weight:700">${entry.employeeName}</div>
+            <div style="font-size:12px;color:var(--muted)">${entry.position||''} &nbsp;·&nbsp; ${emp.employeeId||''}</div>
+            <div style="font-size:12px;color:var(--muted)">${emp.ic||''}</div>
+          </div>
+        </div>
+        <div style="font-size:13px">
+          <div style="font-weight:700;color:var(--muted);font-size:11px;margin-bottom:6px;text-transform:uppercase">Earnings</div>
+          <div class="slip-row"><span>Basic Salary</span><span>RM ${fmt2(entry.basicSalary)}</span></div>
+          ${entry.allowances?`<div class="slip-row"><span>Allowances</span><span>RM ${fmt2(entry.allowances)}</span></div>`:''}
+          ${entry.otAmt?`<div class="slip-row"><span>Overtime</span><span>RM ${fmt2(entry.otAmt)}</span></div>`:''}
+          ${entry.unpaidAmt?`<div class="slip-row"><span style="color:var(--debit)">Unpaid Leave (${entry.unpaidDays}d)</span><span style="color:var(--debit)">- RM ${fmt2(entry.unpaidAmt)}</span></div>`:''}
+          <hr class="slip-divider">
+          <div class="slip-row"><span style="font-weight:600">Gross Salary</span><span style="font-weight:600">RM ${fmt2(entry.gross)}</span></div>
+          <div style="font-weight:700;color:var(--muted);font-size:11px;margin:12px 0 6px;text-transform:uppercase">Deductions</div>
+          <div class="slip-row"><span>EPF (Employee 11%)</span><span style="color:var(--debit)">- RM ${fmt2(entry.epfEmployee)}</span></div>
+          <div class="slip-row"><span>SOCSO (Employee)</span><span style="color:var(--debit)">- RM ${fmt2(entry.socsoEmployee)}</span></div>
+          <div class="slip-row"><span>EIS (Employee 0.2%)</span><span style="color:var(--debit)">- RM ${fmt2(entry.eisEmployee)}</span></div>
+          <div class="slip-row"><span>PCB / MTD (Tax)</span><span style="color:var(--debit)">- RM ${fmt2(entry.pcb)}</span></div>
+          <hr class="slip-divider">
+          <div class="slip-row slip-total"><span>NET PAY</span><span style="color:var(--credit)">RM ${fmt2(entry.netPay)}</span></div>
+          <hr class="slip-divider" style="margin-top:12px">
+          <div style="font-weight:700;color:var(--muted);font-size:11px;margin:12px 0 6px;text-transform:uppercase">Employer Contributions (not deducted)</div>
+          <div class="slip-row"><span>EPF (Employer ${entry.gross>5000?'12':'13'}%)</span><span>RM ${fmt2(entry.epfEmployer)}</span></div>
+          <div class="slip-row"><span>SOCSO (Employer)</span><span>RM ${fmt2(entry.socsoEmployer)}</span></div>
+          <div class="slip-row"><span>EIS (Employer 0.2%)</span><span>RM ${fmt2(entry.eisEmployer)}</span></div>
+          <div class="slip-row" style="font-weight:600;margin-top:4px"><span>Total Employer Cost</span><span>RM ${fmt2(entry.employerCost)}</span></div>
+          <div style="margin-top:16px;font-size:11px;color:var(--muted);border-top:1px solid var(--border);padding-top:10px">
+            Bank: ${emp.bank||'—'} &nbsp;|&nbsp; Account: ${emp.bankAcc||'—'}<br>
+            EPF No: ${emp.epfNo||'—'} &nbsp;|&nbsp; SOCSO No: ${emp.socsoNo||'—'} &nbsp;|&nbsp; Tax No: ${emp.taxNo||'—'}
+          </div>
+        </div>
+      </div>`;
+    document.getElementById('slipModal').classList.add('open');
+  }
+  window.viewSlip = viewSlip;
+}
+
+function finalizePayroll(runId) {
+  const run = document.getElementById('payrollWorkspace')._run;
+  if (!run) return;
+  if (!confirm(`Finalize ${['','January','February','March','April','May','June','July','August','September','October','November','December'][run.month]} ${run.year} payroll and post to expenses?`)) return;
+
+  run.id = runId;
+  run.status = 'finalized';
+  run.processedDate = new Date().toISOString().slice(0,10);
+  run.totalGross = run.entries.reduce((s,e)=>s+e.gross,0);
+  run.totalNet   = run.entries.reduce((s,e)=>s+e.netPay,0);
+  run.totalCost  = run.entries.reduce((s,e)=>s+e.employerCost,0);
+
+  // Post to transactions as company expense
+  const monthStr = ['','January','February','March','April','May','June','July','August','September','October','November','December'][run.month];
+  const desc = `Payroll ${monthStr} ${run.year} (${run.entries.length} staff)`;
+  const today = new Date().toISOString().slice(0,10);
+
+  const tx1 = {
+    id: uid(), date: today, amount: Math.round(run.totalNet*100)/100,
+    type: 'debit', account: 'Payroll', description: desc + ' — Net Pay to Staff',
+    category: 'Salary/Payroll', paymentClass: 'bill', staffName: '',
+    ref: run.id, notes: 'EPF(er)+SOCSO(er)+EIS(er) posted separately', source: 'payroll'
+  };
+  const erContrib = run.entries.reduce((s,e)=>s+(e.epfEmployer+e.socsoEmployer+e.eisEmployer),0);
+  const tx2 = {
+    id: uid(), date: today, amount: Math.round(erContrib*100)/100,
+    type: 'debit', account: 'Payroll', description: desc + ' — Employer EPF+SOCSO+EIS',
+    category: 'Salary/Payroll', paymentClass: 'bill', staffName: '',
+    ref: run.id, notes: 'Statutory employer contributions', source: 'payroll'
+  };
+  transactions.push(tx1, tx2);
+  payrollRuns = payrollRuns.filter(r => !(r.month===run.month && r.year===run.year));
+  payrollRuns.push(run);
+  savePayrollData();
+  saveData();
+  // Sync to Supabase
+  sbUpsert('payroll_runs', toRunRow(run));
+  sbUpsert('transactions', toTxRow(tx1));
+  sbUpsert('transactions', toTxRow(tx2));
+  renderPayrollWorkspace(run);
+  refreshPayHistory();
+  toast(`Payroll finalized & posted to expenses (RM ${fmt2(run.totalCost)} total employer cost)`, 'success');
+}
+
+function refreshPayHistory() {
+  const el = document.getElementById('payHistoryList');
+  const monthNames = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
+  const finalized = [...payrollRuns].filter(r=>r.status==='finalized').sort((a,b)=>b.year-a.year||b.month-a.month);
+  if (!finalized.length) { el.innerHTML = '<div class="empty" style="padding:48px;text-align:center;color:var(--muted)">No finalized payroll runs yet</div>'; return; }
+  el.innerHTML = finalized.map(run => `
+    <div class="emp-card" style="cursor:default">
+      <div class="emp-avatar" style="background:var(--accent2);font-size:12px">PAY</div>
+      <div class="emp-info">
+        <div class="emp-name">${monthNames[run.month]} ${run.year}</div>
+        <div class="emp-sub">${run.entries.length} employees &nbsp;·&nbsp; Processed ${run.processedDate}</div>
+        <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">
+          <span class="stat-pill">Gross: RM ${fmt2(run.totalGross)}</span>
+          <span class="stat-pill" style="color:var(--credit)">Net: RM ${fmt2(run.totalNet)}</span>
+          <span class="stat-pill" style="color:var(--debit)">Total Cost: RM ${fmt2(run.totalCost)}</span>
+        </div>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="reloadPayrun('${run.id}')">View</button>
+    </div>
+  `).join('');
+}
+
+function reloadPayrun(id) {
+  const run = payrollRuns.find(r => r.id === id);
+  if (!run) return;
+  showPanel('payroll');
+  document.getElementById('payMonth').value = run.month;
+  document.getElementById('payYear').value  = run.year;
+  renderPayrollWorkspace(run);
+}
+
+function fmt2(n) { return Number(n||0).toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+// ============================================================
+// SUPABASE DATA LAYER
+// ============================================================
+let sb = null;
+
+function setSyncStatus(status, detail) {
+  const el = document.getElementById('syncStatus');
+  if (!el) return;
+  const map = {
+    syncing: ['🔄','Syncing...','var(--muted)'],
+    synced:  ['✅','Synced with Supabase','var(--credit)'],
+    error:   ['❌','Sync error','var(--debit)'],
+    offline: ['💾','Local only','var(--muted)'],
+  };
+  const [icon, label, color] = map[status] || map.offline;
+  el.textContent = `${icon} ${detail || label}`;
+  el.style.color = color;
+}
+
+function sanitiseSbUrl(raw) {
+  // Strip any path the user may have accidentally pasted
+  // Valid form: https://<ref>.supabase.co  (no trailing slash, no /rest/v1, etc.)
+  try {
+    const u = new URL(raw.trim());
+    return `${u.protocol}//${u.hostname}`;   // keep only scheme + hostname
+  } catch(e) { return raw.trim(); }
+}
+
+function saveSbConfig() {
+  localStorage.setItem('moja_sb_url', sanitiseSbUrl(document.getElementById('sbUrl').value));
+  localStorage.setItem('moja_sb_key', document.getElementById('sbKey').value.trim());
+}
+
+async function connectSupabase() {
+  const rawUrl = document.getElementById('sbUrl').value.trim();
+  const key    = document.getElementById('sbKey').value.trim();
+  if (!rawUrl || !key) { toast('Enter Supabase URL and Anon Key', 'error'); return; }
+
+  const url = sanitiseSbUrl(rawUrl);
+  document.getElementById('sbUrl').value = url;   // show cleaned URL
+  saveSbConfig();
+
+  sb = supabase.createClient(url, key);
+  setSyncStatus('syncing');
+  await syncAllFromSupabase();
+}
+
+function initSupabase() {
+  const url = localStorage.getItem('moja_sb_url');
+  const key = localStorage.getItem('moja_sb_key');
+  if (url) document.getElementById('sbUrl').value = url;
+  if (key) document.getElementById('sbKey').value = key;
+  if (url && key && typeof supabase !== 'undefined') {
+    sb = supabase.createClient(url, key);
+    return true;
+  }
+  return false;
+}
+
+async function diagSupabase() {
+  const url = sanitiseSbUrl(document.getElementById('sbUrl').value.trim());
+  const key = document.getElementById('sbKey').value.trim();
+
+  if (!url || !key) { toast('Enter URL and Key first', 'error'); return; }
+  if (typeof supabase === 'undefined') { toast('Supabase JS library failed to load — check internet connection', 'error'); return; }
+
+  const client = supabase.createClient(url, key);
+  const lines  = [`URL: ${url}`, `Key: ${key.slice(0,20)}...`];
+  let allOk = true;
+
+  for (const table of ['transactions','employees','leave_records','payroll_runs']) {
+    const { data, error } = await client.from(table).select('id').limit(1);
+    if (error) {
+      lines.push(`❌ "${table}": ${error.message} (code: ${error.code})`);
+      allOk = false;
+    } else {
+      lines.push(`✅ "${table}" — OK (${data.length} row sample)`);
+    }
+  }
+
+  alert(lines.join('\n'));
+
+  if (!allOk) {
+    const missing = lines.filter(l=>l.startsWith('❌')).map(l=>l.match(/"(\w+)"/)?.[1]).filter(Boolean);
+    if (missing.length) {
+      toast(`Tables missing: ${missing.join(', ')} — run supabase_schema.sql first`, 'error');
+    }
+  }
+}
+
+// ── Map DB rows ↔ app objects ──
+const toTx = r => ({
+  id: r.id, date: r.date, amount: r.amount, type: r.type,
+  account: r.account||'', description: r.description||'', category: r.category||'Other',
+  paymentClass: r.payment_class||'bill', staffName: r.staff_name||'',
+  ref: r.ref||'', notes: r.notes||'', source: r.source||'manual'
+});
+const toTxRow = t => ({
+  id: t.id, date: t.date, amount: t.amount, type: t.type,
+  account: t.account, description: t.description, category: t.category,
+  payment_class: t.paymentClass, staff_name: t.staffName,
+  ref: t.ref, notes: t.notes, source: t.source
+});
+const toEmp = r => ({
+  id: r.id, name: r.name, employeeId: r.employee_id, ic: r.ic,
+  position: r.position, department: r.department, joinDate: r.join_date,
+  basicSalary: r.basic_salary, workDays: r.work_days, dailyHours: r.daily_hours,
+  residency: r.residency, marital: r.marital, children: r.children,
+  epfNo: r.epf_no, socsoNo: r.socso_no, taxNo: r.tax_no,
+  bank: r.bank, bankAcc: r.bank_acc, status: r.status
+});
+const toEmpRow = e => ({
+  id: e.id, name: e.name, employee_id: e.employeeId, ic: e.ic,
+  position: e.position, department: e.department, join_date: e.joinDate,
+  basic_salary: e.basicSalary, work_days: e.workDays, daily_hours: e.dailyHours,
+  residency: e.residency, marital: e.marital, children: e.children,
+  epf_no: e.epfNo, socso_no: e.socsoNo, tax_no: e.taxNo,
+  bank: e.bank, bank_acc: e.bankAcc, status: e.status
+});
+const toLeave = r => ({
+  id: r.id, employeeId: r.employee_id, type: r.type,
+  from: r.from_date, to: r.to_date, days: r.days,
+  status: r.status, reason: r.reason||''
+});
+const toLeaveRow = l => ({
+  id: l.id, employee_id: l.employeeId, type: l.type,
+  from_date: l.from, to_date: l.to, days: l.days,
+  status: l.status, reason: l.reason
+});
+const toRun = r => ({
+  id: r.id, month: r.month, year: r.year, status: r.status,
+  processedDate: r.processed_date, totalGross: r.total_gross,
+  totalNet: r.total_net, totalCost: r.total_cost, entries: r.entries||[]
+});
+const toRunRow = r => ({
+  id: r.id, month: r.month, year: r.year, status: r.status,
+  processed_date: r.processedDate, total_gross: r.totalGross,
+  total_net: r.totalNet, total_cost: r.totalCost, entries: r.entries
+});
+
+async function syncAllFromSupabase() {
+  if (!sb) { setSyncStatus('offline'); return; }
+  try {
+    setSyncStatus('syncing');
+    const [tx, emp, lv, pr] = await Promise.all([
+      sb.from('transactions').select('*').order('date', { ascending: false }),
+      sb.from('employees').select('*').order('created_at'),
+      sb.from('leave_records').select('*').order('created_at', { ascending: false }),
+      sb.from('payroll_runs').select('*').order('year', { ascending: false }),
+    ]);
+    if (tx.error) throw tx.error;
+    transactions  = (tx.data  || []).map(toTx);
+    employees     = (emp.data || []).map(toEmp);
+    leaveRecords  = (lv.data  || []).map(toLeave);
+    payrollRuns   = (pr.data  || []).map(toRun);
+    // Update local cache
+    localStorage.setItem('moja_transactions',  JSON.stringify(transactions));
+    localStorage.setItem('moja_employees',     JSON.stringify(employees));
+    localStorage.setItem('moja_leaves',        JSON.stringify(leaveRecords));
+    localStorage.setItem('moja_payrollruns',   JSON.stringify(payrollRuns));
+    setSyncStatus('synced');
+    document.getElementById('txCount').textContent = transactions.length;
+    refreshDashboard();
+    toast('Synced from Supabase ✅', 'success');
+  } catch(e) {
+    setSyncStatus('error', '❌ ' + (e.message||'Sync failed'));
+    toast('Supabase error: ' + (e.message||e), 'error');
+  }
+}
+
+// ── Individual record sync helpers (fire-and-forget) ──
+async function sbUpsert(table, row) {
+  if (!sb) return;
+  setSyncStatus('syncing');
+  const { error } = await sb.from(table).upsert(row, { onConflict: 'id' });
+  if (error) { setSyncStatus('error', '❌ ' + error.message); toast('Sync error: ' + error.message, 'error'); }
+  else setSyncStatus('synced');
+}
+
+async function sbDelete(table, id) {
+  if (!sb) return;
+  setSyncStatus('syncing');
+  const { error } = await sb.from(table).delete().eq('id', id);
+  if (error) { setSyncStatus('error', '❌ ' + error.message); toast('Sync error: ' + error.message, 'error'); }
+  else setSyncStatus('synced');
+}
+
+// ============================================================
+// INIT
+// ============================================================
+document.getElementById('editModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+document.getElementById('entryDate').value = new Date().toISOString().slice(0,10);
+
+loadData();
+loadPayrollData();
+document.getElementById('txCount').textContent = transactions.length;
+onProviderChange(true);
+refreshDashboard();
+// Connect Supabase if credentials already saved
+if (initSupabase()) {
+  syncAllFromSupabase(); // pull latest from DB on every load
+}
+
+// Close payroll modals on backdrop click
+['empModal','leaveModal','slipModal'].forEach(id => {
+  document.getElementById(id).addEventListener('click', function(e) { if (e.target === this) this.classList.remove('open'); });
+});
+</script>
+</body>
+</html>
