@@ -252,18 +252,6 @@
       <h1>💰 Moja Finance</h1>
       <p>Finance Agent v1.0 — Please sign in</p>
     </div>
-    <!-- Supabase setup section (shown only if not yet configured) -->
-    <div id="loginSetupSection" style="display:none;margin-bottom:16px;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">
-      <div style="font-size:11px;color:var(--accent);font-weight:600;margin-bottom:10px">⚙ First-time setup — enter your Supabase credentials</div>
-      <div class="form-group" style="margin-bottom:10px">
-        <label>Supabase URL</label>
-        <input type="text" id="loginSbUrl" placeholder="https://xxx.supabase.co">
-      </div>
-      <div class="form-group" style="margin-bottom:0">
-        <label>Supabase Anon Key</label>
-        <input type="password" id="loginSbKey" placeholder="eyJ...">
-      </div>
-    </div>
     <div class="form-group">
       <label>Email</label>
       <input type="email" id="loginEmail" placeholder="you@example.com" onkeydown="if(event.key==='Enter')doLogin()">
@@ -900,6 +888,12 @@
 
 <script>
 // ============================================================
+// APP CONFIG — update these when switching Supabase projects
+// ============================================================
+const SUPABASE_URL = 'https://aiocnhjelokqwjguvtma.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFpb2NuaGplbG9rcXdqZ3V2dG1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5NDA2NDQsImV4cCI6MjA5NjUxNjY0NH0.11uPWmUqTvYPsCoKlXgJMaqI2EjPR9apiIrUs49Msg4';
+
+// ============================================================
 // AUTH — Supabase Auth (email + password)
 // ============================================================
 async function doLogin() {
@@ -910,16 +904,9 @@ async function doLogin() {
 
   if (!email || !pass) { errEl.textContent = 'Please enter email and password.'; return; }
 
-  // If Supabase not yet configured, grab credentials from setup section
+  // Init Supabase from constants if not already done
   if (!sb) {
-    const url = document.getElementById('loginSbUrl').value.trim();
-    const key = document.getElementById('loginSbKey').value.trim();
-    if (!url || !key) { errEl.textContent = 'Enter your Supabase URL and Anon Key above first.'; return; }
-    localStorage.setItem('moja_sb_url', sanitiseSbUrl(url));
-    localStorage.setItem('moja_sb_key', key);
-    document.getElementById('sbUrl').value = sanitiseSbUrl(url);
-    document.getElementById('sbKey').value = key;
-    sb = supabase.createClient(sanitiseSbUrl(url), key);
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   }
 
   btn.textContent = 'Signing in…';
@@ -949,12 +936,7 @@ async function doLogout() {
 }
 
 async function checkAuthSession() {
-  if (!sb) {
-    // Supabase not configured — show setup section on login screen
-    document.getElementById('loginSetupSection').style.display = '';
-    document.getElementById('loginScreen').classList.remove('hidden');
-    return;
-  }
+  if (!sb) sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
     document.getElementById('loginScreen').classList.add('hidden');
@@ -2511,15 +2493,11 @@ async function connectSupabase() {
 }
 
 function initSupabase() {
-  const url = localStorage.getItem('moja_sb_url');
-  const key = localStorage.getItem('moja_sb_key');
-  if (url) document.getElementById('sbUrl').value = url;
-  if (key) document.getElementById('sbKey').value = key;
-  if (url && key && typeof supabase !== 'undefined') {
-    sb = supabase.createClient(url, key);
-    return true;
-  }
-  return false;
+  if (typeof supabase === 'undefined') return false;
+  sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  document.getElementById('sbUrl').value = SUPABASE_URL;
+  document.getElementById('sbKey').value = SUPABASE_KEY;
+  return true;
 }
 
 async function diagSupabase() {
