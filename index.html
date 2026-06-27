@@ -1949,6 +1949,25 @@ function workingDaysInMonth(year, month) {
   return count;
 }
 
+// Public holidays falling within a given month, sorted by date
+function holidaysInMonth(year, month) {
+  const monthStr = `${year}-${String(month).padStart(2,'0')}`;
+  return publicHolidays
+    .filter(h => (h.date || '').startsWith(monthStr))
+    .sort((a,b) => a.date.localeCompare(b.date));
+}
+
+// EA 1955 public-holiday pay for monthly-rated staff who WORK on the holiday.
+// ORP = basic / 26. For each PH day worked we add (rate × ORP), applying the
+// month's holiday rates in date order. `monthHolidays` is the pre-filtered list.
+function calcPHPay(basic, daysWorked, monthHolidays) {
+  const orp = basic / 26;
+  const n = Math.min(Math.max(parseInt(daysWorked) || 0, 0), monthHolidays.length);
+  let sum = 0;
+  for (let i = 0; i < n; i++) sum += (monthHolidays[i].rate || 1.5) * orp;
+  return Math.round(sum * 100) / 100;
+}
+
 // Years of service from join date
 function yearsOfService(joinDate) {
   const j = new Date(joinDate);
@@ -2281,6 +2300,7 @@ function generatePayroll() {
 
   const wdMonth = workingDaysInMonth(year, month);
   const monthStr = `${year}-${String(month).padStart(2,'0')}`;
+  const monthHolidays = holidaysInMonth(year, month);
 
   // Get approved unpaid leaves for this month
   function unpaidDays(empId) {
@@ -2300,7 +2320,10 @@ function generatePayroll() {
     const otAmt = 0;
     const allowances = 0;
     const commission = 0;
-    const gross = Math.round((basic - unpaidAmt + allowances + otAmt + commission) * 100) / 100;
+    // Public holiday pay auto-calculated from PH days worked (default 0)
+    const phWorkedDays = 0;
+    const phPay = calcPHPay(basic, phWorkedDays, monthHolidays);
+    const gross = Math.round((basic - unpaidAmt + allowances + otAmt + commission + phPay) * 100) / 100;
 
     const age60 = false; // could derive from IC if available
     const epf   = calcEPF(gross, age60);
@@ -2318,6 +2341,7 @@ function generatePayroll() {
       otHours: 0, otAmt,
       allowances,
       commission,
+      phWorkedDays, phPay,
       gross,
       epfEmployee: epf.employee, epfEmployer: epf.employer,
       socsoEmployee: socso.employee, socsoEmployer: socso.employer,
@@ -2329,11 +2353,13 @@ function generatePayroll() {
     };
   });
 
-  renderPayrollWorkspace({ id: uid(), month, year, entries, status: 'draft' });
+  renderPayrollWorkspace({ id: uid(), month, year, entries, status: 'draft', holidays: monthHolidays });
 }
 
 function renderPayrollWorkspace(run) {
   const monthNames = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
+  if (!run.holidays) run.holidays = holidaysInMonth(run.year, run.month);
+  const monthHolidays = run.holidays;
   const totalGross = run.entries.reduce((s,e)=>s+e.gross,0);
   const totalNet   = run.entries.reduce((s,e)=>s+e.netPay,0);
   const totalCost  = run.entries.reduce((s,e)=>s+e.employerCost,0);
@@ -2350,6 +2376,14 @@ function renderPayrollWorkspace(run) {
       </div>
     </div>
 
+    ${monthHolidays.length ? `
+    <div class="mini-card" style="margin-bottom:16px;background:var(--surface2)">
+      <div class="lbl" style="margin-bottom:6px">🎌 ${monthHolidays.length} public holiday(s) this month — enter PH days worked per employee to auto-calculate pay (EA 1955: rate × Basic÷26 per day)</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${monthHolidays.map(h => `<span class="stat-pill">${h.date} · ${h.name} <strong>${(h.rate||1.5)}×</strong></span>`).join('')}
+      </div>
+    </div>` : ''}
+
     <div class="payroll-summary-grid">
       <div class="mini-card"><div class="lbl">Total Gross</div><div class="val">RM ${fmt2(totalGross)}</div></div>
       <div class="mini-card"><div class="lbl">Total Net Pay</div><div class="val" style="color:var(--credit)">RM ${fmt2(totalNet)}</div></div>
@@ -2365,7 +2399,7 @@ function renderPayrollWorkspace(run) {
       <div style="overflow-x:auto">
       <table class="pay-table">
         <thead><tr>
-          <th>Employee</th><th>Basic (RM)</th><th>Allowance</th><th>Commission</th><th>OT</th><th>Gross</th>
+          <th>Employee</th><th>Basic (RM)</th><th>Allowance</th><th>Commission</th><th>PH Worked</th><th>PH Pay</th><th>OT</th><th>Gross</th>
           <th>EPF (ee)</th><th>SOCSO (ee)</th><th>EIS (ee)</th><th>PCB</th>
           <th>Total Deduct</th><th style="color:var(--credit)">Net Pay</th>
           <th>EPF (er)</th><th>SOCSO (er)</th><th>EIS (er)</th><th>Total Employer</th>
@@ -2391,6 +2425,12 @@ function renderPayrollWorkspace(run) {
                 : fmt2(e.commission||0)}
             </td>
             <td>
+              ${run.status==='draft' && monthHolidays.length
+                ? `<input type="number" value="${e.phWorkedDays||0}" min="0" max="${monthHolidays.length}" step="1" style="width:64px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:12px" onchange="updatePayEntry(${i},'phWorkedDays',this.value)" title="Days worked out of ${monthHolidays.length} PH this month">`
+                : `${e.phWorkedDays||0} / ${monthHolidays.length}`}
+            </td>
+            <td>RM ${fmt2(e.phPay||0)}</td>
+            <td>
               ${run.status==='draft'
                 ? `<input type="number" value="${e.otAmt}" step="0.01" style="width:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:12px" onchange="updatePayEntry(${i},'otAmt',this.value)" placeholder="OT amt">`
                 : fmt2(e.otAmt)}
@@ -2414,6 +2454,8 @@ function renderPayrollWorkspace(run) {
           <td>RM ${fmt2(run.entries.reduce((s,e)=>s+e.basicSalary,0))}</td>
           <td>RM ${fmt2(run.entries.reduce((s,e)=>s+e.allowances,0))}</td>
           <td>RM ${fmt2(run.entries.reduce((s,e)=>s+(e.commission||0),0))}</td>
+          <td></td>
+          <td>RM ${fmt2(run.entries.reduce((s,e)=>s+(e.phPay||0),0))}</td>
           <td>RM ${fmt2(run.entries.reduce((s,e)=>s+e.otAmt,0))}</td>
           <td>RM ${fmt2(totalGross)}</td>
           <td>RM ${fmt2(run.entries.reduce((s,e)=>s+e.epfEmployee,0))}</td>
@@ -2435,7 +2477,7 @@ function renderPayrollWorkspace(run) {
 
     <div style="margin-top:12px;font-size:12px;color:var(--muted)">
       ⚠ Allowance, Commission &amp; OT accept total amounts (RM) and are added to gross. For OT hours, use: (Basic/26/dailyHours) × rate × hours.<br>
-      💡 Public holiday rates (1.5× / 2.0×) are configured per holiday under Leave Management → Public Holidays.<br>
+      💡 Public Holiday pay is auto-calculated: PH Pay = Σ(holiday rate × Basic÷26) for each PH day worked. Rates (1.5× / 2.0×) are set per holiday under Leave Management → Public Holidays.<br>
       EPF: Employee 11% / Employer 13% (≤RM5k) or 12% (>RM5k) &nbsp;|&nbsp; SOCSO: 0.5% / 1.75% (cap RM5k) &nbsp;|&nbsp; EIS: 0.2% each (cap RM4k) &nbsp;|&nbsp; PCB: progressive MTD
     </div>
   `;
@@ -2443,9 +2485,15 @@ function renderPayrollWorkspace(run) {
 
   function updatePayEntry(idx, field, val) {
     const entry = ws._run.entries[idx];
-    entry[field] = parseFloat(val) || 0;
+    if (field === 'phWorkedDays') {
+      entry.phWorkedDays = Math.min(Math.max(parseInt(val) || 0, 0), monthHolidays.length);
+    } else {
+      entry[field] = parseFloat(val) || 0;
+    }
+    // Auto-calculate public holiday pay from days worked (EA 1955)
+    entry.phPay = calcPHPay(entry.basicSalary, entry.phWorkedDays || 0, monthHolidays);
     // Recalculate gross & deductions
-    entry.gross = Math.round((entry.basicSalary - entry.unpaidAmt + entry.allowances + (entry.commission||0) + entry.otAmt) * 100) / 100;
+    entry.gross = Math.round((entry.basicSalary - entry.unpaidAmt + entry.allowances + (entry.commission||0) + (entry.phPay||0) + entry.otAmt) * 100) / 100;
     const emp = employees.find(e => e.id === entry.employeeId) || {};
     const epf   = calcEPF(entry.gross);
     const socso = calcSOCSO(entry.gross);
@@ -2481,6 +2529,7 @@ function renderPayrollWorkspace(run) {
           <div class="slip-row"><span>Basic Salary</span><span>RM ${fmt2(entry.basicSalary)}</span></div>
           ${entry.allowances?`<div class="slip-row"><span>Allowances</span><span>RM ${fmt2(entry.allowances)}</span></div>`:''}
           ${entry.commission?`<div class="slip-row"><span>Commission</span><span>RM ${fmt2(entry.commission)}</span></div>`:''}
+          ${entry.phPay?`<div class="slip-row"><span>Public Holiday Pay (${entry.phWorkedDays||0}d)</span><span>RM ${fmt2(entry.phPay)}</span></div>`:''}
           ${entry.otAmt?`<div class="slip-row"><span>Overtime</span><span>RM ${fmt2(entry.otAmt)}</span></div>`:''}
           ${entry.unpaidAmt?`<div class="slip-row"><span style="color:var(--debit)">Unpaid Leave (${entry.unpaidDays}d)</span><span style="color:var(--debit)">- RM ${fmt2(entry.unpaidAmt)}</span></div>`:''}
           <hr class="slip-divider">
