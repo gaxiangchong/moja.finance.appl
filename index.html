@@ -682,7 +682,7 @@
       <div class="tab-bar">
         <button class="tab-btn active" onclick="switchLeaveTab('applications',this)">Applications</button>
         <button class="tab-btn" onclick="switchLeaveTab('balances',this)">Leave Balances</button>
-        <button class="tab-btn" onclick="switchLeaveTab('holidays',this)">Public Holidays (Johor 2026)</button>
+        <button class="tab-btn" onclick="switchLeaveTab('holidays',this)">Public Holidays</button>
       </div>
       <div id="leaveTab-applications" class="tab-panel active">
         <div class="table-wrap">
@@ -702,8 +702,11 @@
       </div>
       <div id="leaveTab-holidays" class="tab-panel">
         <div class="table-wrap" style="overflow:hidden">
-          <div class="table-header"><h3>Johor Public Holidays 2026</h3><span style="font-size:12px;color:var(--muted)">Federal + Johor State</span></div>
-          <table><thead><tr><th>Date</th><th>Day</th><th>Holiday</th><th>Type</th></tr></thead>
+          <div class="table-header">
+            <div><h3>Public Holidays</h3><span style="font-size:12px;color:var(--muted)">Rate = OT multiplier earned if worked on the holiday</span></div>
+            <button class="btn btn-primary btn-sm" onclick="openHolidayModal()">+ Add Holiday</button>
+          </div>
+          <table><thead><tr><th>Date</th><th>Day</th><th>Holiday</th><th>Type</th><th>Rate</th><th></th></tr></thead>
           <tbody id="holidayTbody"></tbody></table>
         </div>
       </div>
@@ -814,6 +817,27 @@
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeLeaveModal()">Cancel</button>
       <button class="btn btn-primary" onclick="saveLeave()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Public Holiday Modal -->
+<div class="modal-bg" id="holidayModal">
+  <div class="modal" style="width:460px">
+    <h3>Add Public Holiday</h3>
+    <div class="form-grid">
+      <div class="form-group"><label>Date *</label><input type="date" id="holidayDate"></div>
+      <div class="form-group"><label>Type</label>
+        <select id="holidayType"><option value="Federal">Federal</option><option value="Johor">Johor</option><option value="Company">Company</option></select>
+      </div>
+      <div class="form-group full"><label>Holiday Name *</label><input type="text" id="holidayName" placeholder="e.g. Company Anniversary"></div>
+      <div class="form-group full"><label>Pay Rate if Worked</label>
+        <select id="holidayRate"><option value="1.5">1.5× (one and a half)</option><option value="2">2.0× (double)</option></select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeHolidayModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveHoliday()">Save Holiday</button>
     </div>
   </div>
 </div>
@@ -1824,7 +1848,7 @@ let leaveRecords = [];
 let payrollRuns = [];
 let editingEmpId   = null;
 
-// ── Johor 2026 Public Holidays ──
+// ── Johor 2026 Public Holidays (default seed) ──
 const JOHOR_PH_2026 = [
   { date:'2026-01-01', name:"New Year's Day",                    type:'Federal' },
   { date:'2026-01-22', name:'Hol Almarhum Sultan Iskandar',      type:'Johor' },
@@ -1847,7 +1871,12 @@ const JOHOR_PH_2026 = [
   { date:'2026-12-25', name:'Christmas Day',                    type:'Federal' },
 ];
 
-const PH_SET_2026 = new Set(JOHOR_PH_2026.map(h => h.date));
+// Mutable, user-editable holiday list. Each holiday carries a `rate`
+// (1.5 or 2.0) = the OT multiplier an employee earns if they work that day.
+let publicHolidays = [];
+
+// Set of all holiday date strings (any year) — used to exclude from working days
+function phSet() { return new Set(publicHolidays.map(h => h.date)); }
 
 // ── Malaysia Statutory Calculations ──
 function calcEPF(gross, age60 = false) {
@@ -1909,12 +1938,13 @@ function calcOT(basic, dailyHours, otEntries) {
 // Working days in a month (Mon–Fri, minus PH)
 function workingDaysInMonth(year, month) {
   const days = new Date(year, month, 0).getDate();
+  const phs = phSet();
   let count = 0;
   for (let d = 1; d <= days; d++) {
     const dt = new Date(year, month - 1, d);
     const dow = dt.getDay();
     const ds  = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    if (dow > 0 && dow < 6 && !PH_SET_2026.has(ds)) count++;
+    if (dow > 0 && dow < 6 && !phs.has(ds)) count++;
   }
   return count;
 }
@@ -1940,12 +1970,19 @@ function loadPayrollData() {
   try { employees    = JSON.parse(localStorage.getItem('moja_employees')   || '[]'); } catch(e) { employees = []; }
   try { leaveRecords = JSON.parse(localStorage.getItem('moja_leaves')      || '[]'); } catch(e) { leaveRecords = []; }
   try { payrollRuns  = JSON.parse(localStorage.getItem('moja_payrollruns') || '[]'); } catch(e) { payrollRuns = []; }
+  try { publicHolidays = JSON.parse(localStorage.getItem('moja_holidays')  || '[]'); } catch(e) { publicHolidays = []; }
+  // First run: seed from the Johor 2026 defaults so the calendar isn't empty
+  if (!publicHolidays.length) {
+    publicHolidays = JOHOR_PH_2026.map(h => ({ id: uid(), date: h.date, name: h.name, type: h.type, rate: 1.5 }));
+    localStorage.setItem('moja_holidays', JSON.stringify(publicHolidays));
+  }
 }
 
 function savePayrollData() {
   localStorage.setItem('moja_employees',    JSON.stringify(employees));
   localStorage.setItem('moja_leaves',       JSON.stringify(leaveRecords));
   localStorage.setItem('moja_payrollruns',  JSON.stringify(payrollRuns));
+  localStorage.setItem('moja_holidays',     JSON.stringify(publicHolidays));
 }
 
 function empInitials(name) {
@@ -2114,11 +2151,70 @@ function refreshLeaveBalances() {
 
 function renderHolidays() {
   const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  document.getElementById('holidayTbody').innerHTML = JOHOR_PH_2026.map(h => {
+  const tbody = document.getElementById('holidayTbody');
+  if (!publicHolidays.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">No public holidays — click "+ Add Holiday"</td></tr>';
+    return;
+  }
+  const sorted = [...publicHolidays].sort((a,b) => a.date.localeCompare(b.date));
+  tbody.innerHTML = sorted.map(h => {
     const dow = days[new Date(h.date+'T00:00:00').getDay()];
+    const rate = (h.rate || 1.5);
     return `<tr><td>${h.date}</td><td>${dow}</td><td>${h.name}</td>
-      <td><span class="ph-badge">${h.type}</span></td></tr>`;
+      <td><span class="ph-badge">${h.type}</span></td>
+      <td>
+        <select onchange="updateHolidayRate('${h.id}', this.value)" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:12px">
+          <option value="1.5"${rate==1.5?' selected':''}>1.5×</option>
+          <option value="2"${rate==2?' selected':''}>2.0×</option>
+        </select>
+      </td>
+      <td><button class="btn btn-outline btn-sm" onclick="deleteHoliday('${h.id}')">✕</button></td></tr>`;
   }).join('');
+}
+
+function openHolidayModal() {
+  document.getElementById('holidayDate').value = '';
+  document.getElementById('holidayName').value = '';
+  document.getElementById('holidayType').value = 'Federal';
+  document.getElementById('holidayRate').value = '1.5';
+  document.getElementById('holidayModal').classList.add('open');
+}
+function closeHolidayModal() { document.getElementById('holidayModal').classList.remove('open'); }
+
+function saveHoliday() {
+  const date = document.getElementById('holidayDate').value;
+  const name = document.getElementById('holidayName').value.trim();
+  const type = document.getElementById('holidayType').value;
+  const rate = parseFloat(document.getElementById('holidayRate').value) || 1.5;
+  if (!date || !name) { toast('Please enter a date and holiday name', 'error'); return; }
+  if (publicHolidays.some(h => h.date === date)) { toast('A holiday already exists on that date', 'error'); return; }
+  const holiday = { id: uid(), date, name, type, rate };
+  publicHolidays.push(holiday);
+  savePayrollData();
+  sbUpsert('public_holidays', toHolidayRow(holiday));
+  closeHolidayModal();
+  renderHolidays();
+  toast('Public holiday added', 'success');
+}
+
+function updateHolidayRate(id, val) {
+  const h = publicHolidays.find(x => x.id === id);
+  if (!h) return;
+  h.rate = parseFloat(val) || 1.5;
+  savePayrollData();
+  sbUpsert('public_holidays', toHolidayRow(h));
+  toast(`Rate set to ${h.rate}×`, 'success');
+}
+
+function deleteHoliday(id) {
+  const h = publicHolidays.find(x => x.id === id);
+  if (!h) return;
+  if (!confirm(`Remove "${h.name}" (${h.date})?`)) return;
+  publicHolidays = publicHolidays.filter(x => x.id !== id);
+  savePayrollData();
+  sbDelete('public_holidays', id);
+  renderHolidays();
+  toast('Public holiday removed', 'success');
 }
 
 function openLeaveModal() {
@@ -2133,12 +2229,13 @@ function closeLeaveModal() { document.getElementById('leaveModal').classList.rem
 
 function workingDaysBetween(from, to) {
   let count = 0;
+  const phs = phSet();
   const cur = new Date(from + 'T00:00:00');
   const end = new Date(to + 'T00:00:00');
   while (cur <= end) {
     const dow = cur.getDay();
     const ds  = cur.toISOString().slice(0,10);
-    if (dow > 0 && dow < 6 && !PH_SET_2026.has(ds)) count++;
+    if (dow > 0 && dow < 6 && !phs.has(ds)) count++;
     cur.setDate(cur.getDate() + 1);
   }
   return count;
@@ -2198,12 +2295,12 @@ function generatePayroll() {
     const unpaid   = unpaidDays(e.id);
     const dailyRate = basic / 26;
     const unpaidAmt = Math.round(unpaidDays(e.id) * dailyRate * 100) / 100;
-    const grossBeforeOT = basic - unpaidAmt;
-
     // OT entries: default empty (user can edit before finalizing)
     const otEntries = [];
     const otAmt = 0;
-    const gross = Math.round((grossBeforeOT + otAmt) * 100) / 100;
+    const allowances = 0;
+    const commission = 0;
+    const gross = Math.round((basic - unpaidAmt + allowances + otAmt + commission) * 100) / 100;
 
     const age60 = false; // could derive from IC if available
     const epf   = calcEPF(gross, age60);
@@ -2219,7 +2316,8 @@ function generatePayroll() {
       employeeId: e.id, employeeName: e.name, position: e.position,
       basicSalary: basic, unpaidDays: unpaid, unpaidAmt,
       otHours: 0, otAmt,
-      allowances: 0,
+      allowances,
+      commission,
       gross,
       epfEmployee: epf.employee, epfEmployer: epf.employer,
       socsoEmployee: socso.employee, socsoEmployer: socso.employer,
@@ -2267,7 +2365,7 @@ function renderPayrollWorkspace(run) {
       <div style="overflow-x:auto">
       <table class="pay-table">
         <thead><tr>
-          <th>Employee</th><th>Basic (RM)</th><th>Allowance</th><th>OT</th><th>Gross</th>
+          <th>Employee</th><th>Basic (RM)</th><th>Allowance</th><th>Commission</th><th>OT</th><th>Gross</th>
           <th>EPF (ee)</th><th>SOCSO (ee)</th><th>EIS (ee)</th><th>PCB</th>
           <th>Total Deduct</th><th style="color:var(--credit)">Net Pay</th>
           <th>EPF (er)</th><th>SOCSO (er)</th><th>EIS (er)</th><th>Total Employer</th>
@@ -2286,6 +2384,11 @@ function renderPayrollWorkspace(run) {
               ${run.status==='draft'
                 ? `<input type="number" value="${e.allowances}" step="0.01" style="width:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:12px" onchange="updatePayEntry(${i},'allowances',this.value)">`
                 : fmt2(e.allowances)}
+            </td>
+            <td>
+              ${run.status==='draft'
+                ? `<input type="number" value="${e.commission||0}" step="0.01" style="width:90px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:12px" onchange="updatePayEntry(${i},'commission',this.value)" placeholder="Commission">`
+                : fmt2(e.commission||0)}
             </td>
             <td>
               ${run.status==='draft'
@@ -2310,6 +2413,7 @@ function renderPayrollWorkspace(run) {
           <td>TOTAL</td>
           <td>RM ${fmt2(run.entries.reduce((s,e)=>s+e.basicSalary,0))}</td>
           <td>RM ${fmt2(run.entries.reduce((s,e)=>s+e.allowances,0))}</td>
+          <td>RM ${fmt2(run.entries.reduce((s,e)=>s+(e.commission||0),0))}</td>
           <td>RM ${fmt2(run.entries.reduce((s,e)=>s+e.otAmt,0))}</td>
           <td>RM ${fmt2(totalGross)}</td>
           <td>RM ${fmt2(run.entries.reduce((s,e)=>s+e.epfEmployee,0))}</td>
@@ -2330,7 +2434,8 @@ function renderPayrollWorkspace(run) {
     </div>
 
     <div style="margin-top:12px;font-size:12px;color:var(--muted)">
-      ⚠ OT field accepts total OT amount (RM). For OT hours, use: (Basic/26/dailyHours) × rate × hours.<br>
+      ⚠ Allowance, Commission &amp; OT accept total amounts (RM) and are added to gross. For OT hours, use: (Basic/26/dailyHours) × rate × hours.<br>
+      💡 Public holiday rates (1.5× / 2.0×) are configured per holiday under Leave Management → Public Holidays.<br>
       EPF: Employee 11% / Employer 13% (≤RM5k) or 12% (>RM5k) &nbsp;|&nbsp; SOCSO: 0.5% / 1.75% (cap RM5k) &nbsp;|&nbsp; EIS: 0.2% each (cap RM4k) &nbsp;|&nbsp; PCB: progressive MTD
     </div>
   `;
@@ -2340,7 +2445,7 @@ function renderPayrollWorkspace(run) {
     const entry = ws._run.entries[idx];
     entry[field] = parseFloat(val) || 0;
     // Recalculate gross & deductions
-    entry.gross = Math.round((entry.basicSalary - entry.unpaidAmt + entry.allowances + entry.otAmt) * 100) / 100;
+    entry.gross = Math.round((entry.basicSalary - entry.unpaidAmt + entry.allowances + (entry.commission||0) + entry.otAmt) * 100) / 100;
     const emp = employees.find(e => e.id === entry.employeeId) || {};
     const epf   = calcEPF(entry.gross);
     const socso = calcSOCSO(entry.gross);
@@ -2375,6 +2480,7 @@ function renderPayrollWorkspace(run) {
           <div style="font-weight:700;color:var(--muted);font-size:11px;margin-bottom:6px;text-transform:uppercase">Earnings</div>
           <div class="slip-row"><span>Basic Salary</span><span>RM ${fmt2(entry.basicSalary)}</span></div>
           ${entry.allowances?`<div class="slip-row"><span>Allowances</span><span>RM ${fmt2(entry.allowances)}</span></div>`:''}
+          ${entry.commission?`<div class="slip-row"><span>Commission</span><span>RM ${fmt2(entry.commission)}</span></div>`:''}
           ${entry.otAmt?`<div class="slip-row"><span>Overtime</span><span>RM ${fmt2(entry.otAmt)}</span></div>`:''}
           ${entry.unpaidAmt?`<div class="slip-row"><span style="color:var(--debit)">Unpaid Leave (${entry.unpaidDays}d)</span><span style="color:var(--debit)">- RM ${fmt2(entry.unpaidAmt)}</span></div>`:''}
           <hr class="slip-divider">
@@ -2546,7 +2652,7 @@ async function diagSupabase() {
   const lines  = [`URL: ${url}`, `Key: ${key.slice(0,20)}...`];
   let allOk = true;
 
-  for (const table of ['transactions','employees','leave_records','payroll_runs']) {
+  for (const table of ['transactions','employees','leave_records','payroll_runs','public_holidays']) {
     const { data, error } = await client.from(table).select('id').limit(1);
     if (error) {
       lines.push(`❌ "${table}": ${error.message} (code: ${error.code})`);
@@ -2605,6 +2711,13 @@ const toLeaveRow = l => ({
   from_date: l.from, to_date: l.to, days: l.days,
   status: l.status, reason: l.reason
 });
+const toHoliday = r => ({
+  id: r.id, date: r.date, name: r.name,
+  type: r.type||'Federal', rate: r.rate!=null ? Number(r.rate) : 1.5
+});
+const toHolidayRow = h => ({
+  id: h.id, date: h.date, name: h.name, type: h.type, rate: h.rate
+});
 const toRun = r => ({
   id: r.id, month: r.month, year: r.year, status: r.status,
   processedDate: r.processed_date, totalGross: r.total_gross,
@@ -2620,22 +2733,25 @@ async function syncAllFromSupabase() {
   if (!sb) { setSyncStatus('offline'); return; }
   try {
     setSyncStatus('syncing');
-    const [tx, emp, lv, pr] = await Promise.all([
+    const [tx, emp, lv, pr, ph] = await Promise.all([
       sb.from('transactions').select('*').order('date', { ascending: false }),
       sb.from('employees').select('*').order('created_at'),
       sb.from('leave_records').select('*').order('created_at', { ascending: false }),
       sb.from('payroll_runs').select('*').order('year', { ascending: false }),
+      sb.from('public_holidays').select('*').order('date'),
     ]);
     if (tx.error) throw tx.error;
     transactions  = (tx.data  || []).map(toTx);
     employees     = (emp.data || []).map(toEmp);
     leaveRecords  = (lv.data  || []).map(toLeave);
     payrollRuns   = (pr.data  || []).map(toRun);
+    if (!ph.error && ph.data && ph.data.length) publicHolidays = ph.data.map(toHoliday);
     // Update local cache
     localStorage.setItem('moja_transactions',  JSON.stringify(transactions));
     localStorage.setItem('moja_employees',     JSON.stringify(employees));
     localStorage.setItem('moja_leaves',        JSON.stringify(leaveRecords));
     localStorage.setItem('moja_payrollruns',   JSON.stringify(payrollRuns));
+    localStorage.setItem('moja_holidays',      JSON.stringify(publicHolidays));
     setSyncStatus('synced');
     document.getElementById('txCount').textContent = transactions.length;
     refreshDashboard();
@@ -2687,7 +2803,7 @@ checkAuthSession().then(() => {
 });
 
 // Close payroll modals on backdrop click
-['empModal','leaveModal','slipModal'].forEach(id => {
+['empModal','leaveModal','slipModal','holidayModal'].forEach(id => {
   document.getElementById(id).addEventListener('click', function(e) { if (e.target === this) this.classList.remove('open'); });
 });
 </script>

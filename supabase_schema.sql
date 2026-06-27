@@ -71,20 +71,32 @@ create table if not exists payroll_runs (
   created_at      timestamptz default now()
 );
 
+-- 5. PUBLIC HOLIDAYS (user-editable; rate = OT multiplier if worked)
+create table if not exists public_holidays (
+  id            text primary key,
+  date          text not null,
+  name          text not null,
+  type          text default 'Federal',
+  rate          numeric(3,1) default 1.5,
+  created_at    timestamptz default now()
+);
+
 -- ============================================================
 -- Row Level Security (RLS)
 -- For a single-company private app using the anon key,
 -- we allow all operations. Restrict further in production.
 -- ============================================================
-alter table transactions  enable row level security;
-alter table employees     enable row level security;
-alter table leave_records enable row level security;
-alter table payroll_runs  enable row level security;
+alter table transactions    enable row level security;
+alter table employees       enable row level security;
+alter table leave_records   enable row level security;
+alter table payroll_runs    enable row level security;
+alter table public_holidays enable row level security;
 
-create policy "Allow all on transactions"  on transactions  for all using (true) with check (true);
-create policy "Allow all on employees"     on employees     for all using (true) with check (true);
-create policy "Allow all on leave_records" on leave_records for all using (true) with check (true);
-create policy "Allow all on payroll_runs"  on payroll_runs  for all using (true) with check (true);
+create policy "Allow all on transactions"    on transactions    for all using (true) with check (true);
+create policy "Allow all on employees"       on employees       for all using (true) with check (true);
+create policy "Allow all on leave_records"   on leave_records   for all using (true) with check (true);
+create policy "Allow all on payroll_runs"    on payroll_runs    for all using (true) with check (true);
+create policy "Allow all on public_holidays" on public_holidays for all using (true) with check (true);
 
 -- ============================================================
 -- Indexes for common queries
@@ -93,3 +105,4 @@ create index if not exists idx_tx_date      on transactions(date desc);
 create index if not exists idx_tx_type      on transactions(type);
 create index if not exists idx_leave_emp    on leave_records(employee_id);
 create index if not exists idx_payrun_month on payroll_runs(year desc, month desc);
+create index if not exists idx_holiday_date on public_holidays(date);
