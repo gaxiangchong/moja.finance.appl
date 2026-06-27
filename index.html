@@ -367,6 +367,10 @@
             <option value="last90">Last 90 Days</option>
             <option value="all">All Time</option>
           </select>
+          <label>Category:</label>
+          <select id="dashCat" onchange="refreshDashboard()">
+            <option value="">All Categories</option>
+          </select>
         </div>
       </div>
 
@@ -500,6 +504,15 @@
           <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Staff name (optional)</label>
           <input type="text" id="reimbStaffName" placeholder="e.g. Alice Tan" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:7px;font-size:13px;width:260px">
         </div>
+        <!-- Default category for this upload -->
+        <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">Category for this upload</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="uploadCat" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:7px;font-size:13px;min-width:260px"></select>
+            <button type="button" class="btn btn-outline btn-sm" onclick="addCategoryPrompt('uploadCat')">+ New Category</button>
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-top:6px">All rows extracted from this upload will be categorised under this category (you can still change any row before importing).</div>
+        </div>
       </div>
 
       <div class="upload-area" onclick="document.getElementById('fileInput').click()" id="dropZone">
@@ -544,24 +557,10 @@
           </div>
           <div class="form-group">
             <label>Category</label>
-            <select id="entryCat">
-              <option value="Salary/Payroll">Salary / Payroll</option>
-              <option value="Sales Revenue">Sales Revenue</option>
-              <option value="Rent/Lease">Rent / Lease</option>
-              <option value="Utilities">Utilities</option>
-              <option value="Supplies">Supplies</option>
-              <option value="Marketing">Marketing</option>
-              <option value="Travel">Travel</option>
-              <option value="Software/SaaS">Software / SaaS</option>
-              <option value="Professional Services">Professional Services</option>
-              <option value="Insurance">Insurance</option>
-              <option value="Taxes">Taxes</option>
-              <option value="Meals/Entertainment">Meals / Entertainment</option>
-              <option value="Equipment">Equipment</option>
-              <option value="Bank Fees">Bank Fees</option>
-              <option value="Startup Cost">Startup Cost</option>
-              <option value="Other">Other</option>
-            </select>
+            <div style="display:flex;gap:6px">
+              <select id="entryCat" style="flex:1"></select>
+              <button type="button" class="btn btn-outline btn-sm" onclick="addCategoryPrompt('entryCat')">+ New</button>
+            </div>
           </div>
           <div class="form-group">
             <label>Reference / Invoice #</label>
@@ -869,24 +868,10 @@
       <div class="form-group"><label>Account</label><input type="text" id="editAccount"></div>
       <div class="form-group full"><label>Description</label><input type="text" id="editDesc"></div>
       <div class="form-group"><label>Category</label>
-        <select id="editCat">
-          <option value="Salary/Payroll">Salary / Payroll</option>
-          <option value="Sales Revenue">Sales Revenue</option>
-          <option value="Rent/Lease">Rent / Lease</option>
-          <option value="Utilities">Utilities</option>
-          <option value="Supplies">Supplies</option>
-          <option value="Marketing">Marketing</option>
-          <option value="Travel">Travel</option>
-          <option value="Software/SaaS">Software / SaaS</option>
-          <option value="Professional Services">Professional Services</option>
-          <option value="Insurance">Insurance</option>
-          <option value="Taxes">Taxes</option>
-          <option value="Meals/Entertainment">Meals / Entertainment</option>
-          <option value="Equipment">Equipment</option>
-          <option value="Bank Fees">Bank Fees</option>
-          <option value="Startup Cost">Startup Cost</option>
-          <option value="Other">Other</option>
-        </select>
+        <div style="display:flex;gap:6px">
+          <select id="editCat" style="flex:1"></select>
+          <button type="button" class="btn btn-outline btn-sm" onclick="addCategoryPrompt('editCat')">+ New</button>
+        </div>
       </div>
       <div class="form-group"><label>Reference</label><input type="text" id="editRef"></div>
       <div class="form-group">
@@ -1201,8 +1186,10 @@ function filterByDateRange(txs, range) {
 // ============================================================
 function refreshDashboard() {
   const period = document.getElementById('dashPeriod').value;
+  const catFilter = (document.getElementById('dashCat') || {}).value || '';
   const range = getDateRange(period);
-  const filtered = filterByDateRange(transactions, range);
+  let filtered = filterByDateRange(transactions, range);
+  if (catFilter) filtered = filtered.filter(t => t.category === catFilter);
 
   const income = filtered.filter(t => t.type === 'credit').reduce((s, t) => s + t.amount, 0);
   const expenses = filtered.filter(t => t.type === 'debit').reduce((s, t) => s + t.amount, 0);
@@ -1266,8 +1253,9 @@ function refreshDashboard() {
     <div class="stat-row"><span class="stat-label">Net</span><span style="color:${ytdIn-ytdOut>=0?'var(--credit)':'var(--debit)'}">${fmt(ytdIn-ytdOut)}</span></div>
   `;
 
-  // Recent 8 transactions
-  const recent = [...transactions].sort((a,b) => b.date.localeCompare(a.date)).slice(0, 8);
+  // Recent 8 transactions (respect category filter)
+  const recentPool = catFilter ? transactions.filter(t => t.category === catFilter) : transactions;
+  const recent = [...recentPool].sort((a,b) => b.date.localeCompare(a.date)).slice(0, 8);
   const tbody = document.getElementById('recentTbody');
   if (!recent.length) {
     tbody.innerHTML = '<tr><td colspan="5" class="empty">No transactions yet</td></tr>';
@@ -1417,9 +1405,10 @@ async function handleFiles(files) {
   }
   const pclass    = currentPClass;
   const staffName = document.getElementById('reimbStaffName').value.trim();
+  const uploadCat = document.getElementById('uploadCat').value || 'Other';
   for (const file of files) {
     if (file.type === 'application/pdf' || file.type.startsWith('image/')) {
-      await extractFromFile(file, cfg, pclass, staffName);
+      await extractFromFile(file, cfg, pclass, staffName, uploadCat);
     }
   }
 }
@@ -1446,7 +1435,7 @@ Return ONLY a JSON array with this exact structure (no markdown, no explanation)
     "amount": 123.45,
     "type": "debit or credit",
     "account": "account name if visible",
-    "category": "one of: Salary/Payroll, Sales Revenue, Rent/Lease, Utilities, Supplies, Marketing, Travel, Software/SaaS, Professional Services, Insurance, Taxes, Meals/Entertainment, Equipment, Bank Fees, Startup Cost, Other",
+    "category": "one of: Salary/Payroll, Sales Revenue, Rent/Lease, Utilities, Ingredient - Hot Kitchen, Ingredient - Cake Kitchen, Drinks & Beverages Ingredient, General Supplies, Equipment, Construction, Facility, Supplies, Marketing, Travel, Software/SaaS, Professional Services, Insurance, Taxes, Meals/Entertainment, Bank Fees, Startup Cost, Misc, Other",
     "notes": "reference numbers or extra info"
   }
 ]
@@ -1457,7 +1446,7 @@ Rules:
 - If date unclear, use today: ${today}
 - Use "Startup Cost" for: renovation, fitting out, interior works, signage, furniture, tables, chairs, shelving, initial setup or one-time pre-opening costs`;
 
-async function extractFromFile(file, cfg, pclass = 'bill', staffName = '') {
+async function extractFromFile(file, cfg, pclass = 'bill', staffName = '', defaultCat = 'Other') {
   const container = document.getElementById('extractedList');
   const loadId = uid();
   const isPDF = file.type === 'application/pdf';
@@ -1533,7 +1522,7 @@ async function extractFromFile(file, cfg, pclass = 'bill', staffName = '') {
     // Parse JSON from response
     const match = responseText.match(/\[[\s\S]*\]/);
     const extracted = JSON.parse(match ? match[0] : responseText);
-    renderExtracted(loadId, file.name, extracted, pclass, staffName);
+    renderExtracted(loadId, file.name, extracted, pclass, staffName, defaultCat);
 
   } catch(err) {
     document.getElementById('proc-' + loadId).innerHTML = `
@@ -1544,15 +1533,74 @@ async function extractFromFile(file, cfg, pclass = 'bill', staffName = '') {
   }
 }
 
-const CATS = ['Salary/Payroll','Sales Revenue','Rent/Lease','Utilities','Supplies','Marketing','Travel','Software/SaaS','Professional Services','Insurance','Taxes','Meals/Entertainment','Equipment','Bank Fees','Startup Cost','Other'];
-const catOptions = CATS.map(c => `<option value="${c}">${c}</option>`).join('');
+// Built-in categories. New kitchen/operations categories are first-class defaults.
+const DEFAULT_CATS = [
+  'Salary/Payroll','Sales Revenue','Rent/Lease','Utilities',
+  'Ingredient - Hot Kitchen','Ingredient - Cake Kitchen','Drinks & Beverages Ingredient',
+  'General Supplies','Equipment','Construction','Facility',
+  'Supplies','Marketing','Travel','Software/SaaS','Professional Services',
+  'Insurance','Taxes','Meals/Entertainment','Bank Fees','Startup Cost','Misc','Other'
+];
+let CATS = [...DEFAULT_CATS];
+let catOptions = CATS.map(c => `<option value="${c}">${c}</option>`).join('');
 
-function renderExtracted(loadId, filename, items, pclass = 'bill', staffName = '') {
+// Load user-added (custom) categories and merge with defaults ('Other' always last)
+function loadCategories() {
+  let custom = [];
+  try { custom = JSON.parse(localStorage.getItem('moja_custom_cats') || '[]'); } catch(e) { custom = []; }
+  CATS = [...new Set([...DEFAULT_CATS.filter(c => c !== 'Other'), ...custom, 'Other'])];
+  catOptions = CATS.map(c => `<option value="${c}">${c}</option>`).join('');
+}
+
+function saveCustomCategories() {
+  const custom = CATS.filter(c => !DEFAULT_CATS.includes(c));
+  localStorage.setItem('moja_custom_cats', JSON.stringify(custom));
+}
+
+// Repopulate every category dropdown in the app, preserving current selections
+function refreshCategorySelects() {
+  ['entryCat','editCat','uploadCat'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = catOptions;
+    if (cur && CATS.includes(cur)) sel.value = cur;
+  });
+  const dc = document.getElementById('dashCat');
+  if (dc) {
+    const cur = dc.value;
+    dc.innerHTML = '<option value="">All Categories</option>' + catOptions;
+    if (cur) dc.value = cur;
+  }
+}
+
+// Prompt the user for a new category, persist it, and select it in the given dropdown
+function addCategoryPrompt(targetSelectId) {
+  const name = (prompt('New category name:') || '').trim();
+  if (!name) return;
+  if (CATS.includes(name)) {
+    const sel = document.getElementById(targetSelectId);
+    if (sel) sel.value = name;
+    toast('Category already exists', 'error');
+    return;
+  }
+  CATS = [...CATS.filter(c => c !== 'Other'), name, 'Other'];
+  catOptions = CATS.map(c => `<option value="${c}">${c}</option>`).join('');
+  saveCustomCategories();
+  refreshCategorySelects();
+  const sel = document.getElementById(targetSelectId);
+  if (sel) sel.value = name;
+  toast(`Category "${name}" added`, 'success');
+}
+
+function renderExtracted(loadId, filename, items, pclass = 'bill', staffName = '', defaultCat = 'Other') {
   const el = document.getElementById('proc-' + loadId);
   if (!items.length) {
     el.innerHTML = `<h4>⚠ No transactions found in ${filename}</h4>`;
     return;
   }
+  // Apply the upload's chosen category to every extracted row as the default
+  if (defaultCat) items.forEach(item => { item.category = defaultCat; });
 
   const pclassLabel = pclass === 'reimbursement'
     ? `💼 Reimbursement${staffName ? ' · ' + staffName : ''}`
@@ -1648,7 +1696,12 @@ function openEdit(id) {
   document.getElementById('editType').value = tx.type;
   document.getElementById('editAccount').value = tx.account || '';
   document.getElementById('editDesc').value = tx.description;
-  document.getElementById('editCat').value = tx.category;
+  const editCatSel = document.getElementById('editCat');
+  editCatSel.innerHTML = catOptions;
+  if (tx.category && !CATS.includes(tx.category)) {
+    editCatSel.insertAdjacentHTML('beforeend', `<option value="${tx.category}">${tx.category}</option>`);
+  }
+  editCatSel.value = tx.category || 'Other';
   document.getElementById('editRef').value = tx.ref || '';
   document.getElementById('editNotes').value = tx.notes || '';
   document.getElementById('editPClass').value = tx.paymentClass || 'bill';
@@ -2839,6 +2892,8 @@ document.getElementById('entryDate').value = new Date().toISOString().slice(0,10
 
 loadData();
 loadPayrollData();
+loadCategories();
+refreshCategorySelects();
 document.getElementById('txCount').textContent = transactions.length;
 onProviderChange(true);
 refreshDashboard();
