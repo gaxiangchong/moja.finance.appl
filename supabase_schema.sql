@@ -41,8 +41,13 @@ create table if not exists employees (
   bank          text,
   bank_acc      text,
   status        text default 'active',
+  end_date      text,
+  package_id    text,
   created_at    timestamptz default now()
 );
+-- Backfill for existing installations (safe to re-run):
+alter table employees add column if not exists end_date   text;
+alter table employees add column if not exists package_id text;
 
 -- 3. LEAVE RECORDS
 create table if not exists leave_records (
@@ -81,6 +86,36 @@ create table if not exists public_holidays (
   created_at    timestamptz default now()
 );
 
+-- 6. PAY ITEMS (per-employee per-month: allowance, claim, overtime, PH)
+create table if not exists pay_items (
+  id           text primary key,
+  employee_id  text references employees(id) on delete cascade,
+  month        integer not null,
+  year         integer not null,
+  type         text not null check (type in ('allowance','claim','overtime','ph')),
+  label        text,
+  ot_type      text,                 -- weekday | restday | holiday (overtime only)
+  hours        numeric(6,2),         -- overtime only
+  ph_days      integer,              -- ph only
+  amount       numeric(15,2),        -- entered (allowance/claim) or computed (ot/ph) snapshot
+  notes        text,
+  created_at   timestamptz default now()
+);
+
+-- 7. BONUS PACKAGES (admin-configurable compensation plans)
+create table if not exists bonus_packages (
+  id               text primary key,
+  name             text not null,
+  sop_enabled      boolean default false,
+  sop_tiers        jsonb,              -- [{minScore, amount}] matched highest-first
+  perunit_enabled  boolean default false,
+  perunit_label    text,               -- e.g. 'Bento'
+  perunit_rate     numeric(15,2),      -- RM per unit
+  company_enabled  boolean default false,
+  company_tiers    jsonb,              -- [{minSales, amount}] matched highest-first
+  created_at       timestamptz default now()
+);
+
 -- ============================================================
 -- Row Level Security (RLS)
 -- For a single-company private app using the anon key,
@@ -91,12 +126,16 @@ alter table employees       enable row level security;
 alter table leave_records   enable row level security;
 alter table payroll_runs    enable row level security;
 alter table public_holidays enable row level security;
+alter table pay_items       enable row level security;
+alter table bonus_packages  enable row level security;
 
 create policy "Allow all on transactions"    on transactions    for all using (true) with check (true);
 create policy "Allow all on employees"       on employees       for all using (true) with check (true);
 create policy "Allow all on leave_records"   on leave_records   for all using (true) with check (true);
 create policy "Allow all on payroll_runs"    on payroll_runs    for all using (true) with check (true);
 create policy "Allow all on public_holidays" on public_holidays for all using (true) with check (true);
+create policy "Allow all on pay_items"       on pay_items       for all using (true) with check (true);
+create policy "Allow all on bonus_packages"  on bonus_packages  for all using (true) with check (true);
 
 -- ============================================================
 -- Indexes for common queries
@@ -106,3 +145,5 @@ create index if not exists idx_tx_type      on transactions(type);
 create index if not exists idx_leave_emp    on leave_records(employee_id);
 create index if not exists idx_payrun_month on payroll_runs(year desc, month desc);
 create index if not exists idx_holiday_date on public_holidays(date);
+create index if not exists idx_payitem_period on pay_items(year desc, month desc);
+create index if not exists idx_payitem_emp    on pay_items(employee_id);

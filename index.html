@@ -295,6 +295,12 @@
       <div class="nav-item" onclick="showPanel('leave')">
         <span class="nav-icon">🗓</span> Leave
       </div>
+      <div class="nav-item" onclick="showPanel('payitems')">
+        <span class="nav-icon">➕</span> Pay Items
+      </div>
+      <div class="nav-item" onclick="showPanel('packages')">
+        <span class="nav-icon">🏆</span> Packages
+      </div>
       <div class="nav-item" onclick="showPanel('payroll')">
         <span class="nav-icon">💵</span> Run Payroll
       </div>
@@ -460,7 +466,7 @@
         <div class="table-header">
           <h3 id="ledgerCount">0 transactions</h3>
           <div style="display:flex;gap:8px;align-items:center">
-            <button class="btn btn-danger btn-sm" id="bulkDeleteBtn" style="display:none" onclick="deleteSelected()">🗑 Delete Selected (<span id="selectedCount">0</span>)</button>
+            <button class="btn btn-danger btn-sm js-write" id="bulkDeleteBtn" style="display:none" onclick="deleteSelected()">🗑 Delete Selected (<span id="selectedCount">0</span>)</button>
             <span style="font-size:13px;color:var(--credit)">In: <strong id="ledgerIn">RM 0</strong></span>
             <span style="font-size:13px;color:var(--debit)">Out: <strong id="ledgerOut">RM 0</strong></span>
           </div>
@@ -583,7 +589,7 @@
           </div>
         </div>
         <div class="form-actions" style="margin-top:16px">
-          <button class="btn btn-success" onclick="saveManualEntry()">Save Transaction</button>
+          <button class="btn btn-success js-write" onclick="saveManualEntry()">Save Transaction</button>
           <button class="btn btn-outline" onclick="clearEntryForm()">Clear</button>
         </div>
       </div>
@@ -665,7 +671,7 @@
     <div id="panel-employees" class="panel">
       <div class="page-header">
         <div><h2>Employees</h2><div class="sub">Manage employee records</div></div>
-        <button class="btn btn-primary" onclick="openEmpModal()">+ Add Employee</button>
+        <button class="btn btn-primary js-write" onclick="openEmpModal()">+ Add Employee</button>
       </div>
       <div id="empList"><div class="empty" style="padding:48px;text-align:center;color:var(--muted)">No employees yet — add one to get started</div></div>
     </div>
@@ -676,7 +682,7 @@
     <div id="panel-leave" class="panel">
       <div class="page-header">
         <div><h2>Leave Management</h2><div class="sub">Johor 2026 calendar — EA 1955 entitlements</div></div>
-        <button class="btn btn-primary" onclick="openLeaveModal()">+ Apply Leave</button>
+        <button class="btn btn-primary js-write" onclick="openLeaveModal()">+ Apply Leave</button>
       </div>
       <div class="tab-bar">
         <button class="tab-btn active" onclick="switchLeaveTab('applications',this)">Applications</button>
@@ -703,11 +709,53 @@
         <div class="table-wrap" style="overflow:hidden">
           <div class="table-header">
             <div><h3>Public Holidays</h3><span style="font-size:12px;color:var(--muted)">Rate = OT multiplier earned if worked on the holiday</span></div>
-            <button class="btn btn-primary btn-sm" onclick="openHolidayModal()">+ Add Holiday</button>
+            <button class="btn btn-primary btn-sm js-write" onclick="openHolidayModal()">+ Add Holiday</button>
           </div>
           <table><thead><tr><th>Date</th><th>Day</th><th>Holiday</th><th>Type</th><th>Rate</th><th></th></tr></thead>
           <tbody id="holidayTbody"></tbody></table>
         </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         BONUS PACKAGES
+    ══════════════════════════════════════ -->
+    <div id="panel-packages" class="panel">
+      <div class="page-header">
+        <div><h2>Bonus Packages</h2><div class="sub">Configurable comp plans — SOP performance · per-unit incentive · company-tier bonus</div></div>
+        <button class="btn btn-primary js-write" onclick="openPackageModal()">+ Add Package</button>
+      </div>
+      <div id="packageList"><div class="empty" style="padding:48px;text-align:center;color:var(--muted)">No packages yet</div></div>
+      <div style="margin-top:12px;font-size:12px;color:var(--muted)">
+        💡 Assign a package to each employee (Employees → edit). Bonuses compute at Run Payroll from the package rules + monthly inputs and are added to gross (subject to EPF/SOCSO/EIS/PCB).
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         PAY ITEMS
+    ══════════════════════════════════════ -->
+    <div id="panel-payitems" class="panel">
+      <div class="page-header">
+        <div><h2>Pay Items</h2><div class="sub">Allowances · Claims/Reimbursements · Overtime · Public Holiday pay — pulled into Run Payroll</div></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="piMonth" onchange="refreshPayItems()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:7px;font-size:13px">
+            <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+            <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+            <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+            <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+          </select>
+          <select id="piYear" onchange="refreshPayItems()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:7px;font-size:13px">
+            <option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option>
+          </select>
+          <button class="btn btn-primary js-write" onclick="openPayItemModal()">+ Add Pay Item</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table><thead><tr><th>Employee</th><th>Type</th><th>Detail</th><th>Amount (RM)</th><th>Statutory</th><th></th></tr></thead>
+        <tbody id="payItemTbody"><tr><td colspan="6" class="empty">No pay items for this period</td></tr></tbody></table>
+      </div>
+      <div style="margin-top:12px;font-size:12px;color:var(--muted)">
+        💡 Allowance, Overtime &amp; Public Holiday pay are wages (subject to EPF/SOCSO/EIS/PCB). Claims/Reimbursements are paid on top of net pay and are exempt from statutory deductions.
       </div>
     </div>
 
@@ -779,11 +827,15 @@
       <div class="form-group"><label>Status</label>
         <select id="empStatus"><option value="active">Active</option><option value="inactive">Inactive</option></select>
       </div>
+      <div class="form-group"><label>Last Working Day</label><input type="date" id="empEndDate" placeholder="Optional — for resignations"></div>
+      <div class="form-group"><label>Bonus Package</label>
+        <select id="empPackage"><option value="">None</option></select>
+      </div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-danger btn-sm" id="empDeleteBtn" onclick="deleteEmployee()" style="display:none">Delete</button>
       <button class="btn btn-outline" onclick="closeEmpModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveEmployee()">Save Employee</button>
+      <button class="btn btn-primary js-write" onclick="saveEmployee()">Save Employee</button>
     </div>
   </div>
 </div>
@@ -815,7 +867,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeLeaveModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveLeave()">Save</button>
+      <button class="btn btn-primary js-write" onclick="saveLeave()">Save</button>
     </div>
   </div>
 </div>
@@ -836,7 +888,103 @@
     </div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeHolidayModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveHoliday()">Save Holiday</button>
+      <button class="btn btn-primary js-write" onclick="saveHoliday()">Save Holiday</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pay Item Modal -->
+<div class="modal-bg" id="payItemModal">
+  <div class="modal" style="width:500px">
+    <h3>Add Pay Item</h3>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px" id="piPeriodLabel"></div>
+    <div class="form-grid">
+      <div class="form-group"><label>Employee *</label>
+        <select id="piEmpSel" onchange="onPayItemTypeChange()"></select>
+      </div>
+      <div class="form-group"><label>Type *</label>
+        <select id="piType" onchange="onPayItemTypeChange()">
+          <option value="allowance">Allowance</option>
+          <option value="claim">Claim / Reimbursement</option>
+          <option value="overtime">Overtime</option>
+          <option value="ph">Public Holiday Pay</option>
+        </select>
+      </div>
+      <!-- allowance / claim -->
+      <div class="form-group full" id="piLabelGroup"><label id="piLabelLbl">Label</label><input type="text" id="piLabel" placeholder="e.g. Transport allowance"></div>
+      <div class="form-group" id="piAmountGroup"><label>Amount (RM) *</label><input type="number" id="piAmount" step="0.01" min="0" placeholder="0.00" oninput="onPayItemTypeChange()"></div>
+      <!-- overtime -->
+      <div class="form-group" id="piOtTypeGroup" style="display:none"><label>OT Type</label>
+        <select id="piOtType" onchange="onPayItemTypeChange()">
+          <option value="weekday">Weekday (1.5×)</option>
+          <option value="restday">Rest Day (2.0×)</option>
+          <option value="holiday">Public Holiday (3.0×)</option>
+        </select>
+      </div>
+      <div class="form-group" id="piHoursGroup" style="display:none"><label>Hours *</label><input type="number" id="piHours" step="0.5" min="0" placeholder="0" oninput="onPayItemTypeChange()"></div>
+      <!-- ph -->
+      <div class="form-group" id="piPhDaysGroup" style="display:none"><label>PH Days Worked *</label><input type="number" id="piPhDays" step="1" min="0" placeholder="0" oninput="onPayItemTypeChange()"></div>
+      <div class="form-group full"><label>Notes</label><input type="text" id="piNotes" placeholder="Optional"></div>
+    </div>
+    <div class="mini-card" style="margin-top:4px;background:var(--surface2)">
+      <div class="lbl">Computed Amount</div>
+      <div class="val" id="piComputed" style="font-size:18px">RM 0.00</div>
+      <div style="font-size:11px;color:var(--muted)" id="piComputedHint"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closePayItemModal()">Cancel</button>
+      <button class="btn btn-primary js-write" onclick="savePayItem()">Save Pay Item</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bonus Package Modal -->
+<div class="modal-bg" id="packageModal">
+  <div class="modal" style="width:560px;max-height:88vh;overflow-y:auto">
+    <h3 id="packageModalTitle">Add Bonus Package</h3>
+    <div class="form-group full" style="margin-bottom:14px"><label>Package Name *</label><input type="text" id="pkgName" placeholder="e.g. Hot Kitchen Chef"></div>
+
+    <!-- SOP performance -->
+    <div class="mini-card" style="background:var(--surface2);margin-bottom:12px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600">
+        <input type="checkbox" id="pkgSopEnabled" onchange="onPkgToggle()"> SOP Performance Bonus
+      </label>
+      <div id="pkgSopBody" style="display:none;margin-top:10px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Score tiers — bonus = amount of the highest tier the score meets.</div>
+        <div id="pkgSopTiers"></div>
+        <button class="btn btn-outline btn-sm" onclick="addTierRow('pkgSopTiers','score')" style="margin-top:6px">+ Add Tier</button>
+      </div>
+    </div>
+
+    <!-- Per-unit incentive -->
+    <div class="mini-card" style="background:var(--surface2);margin-bottom:12px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600">
+        <input type="checkbox" id="pkgPerunitEnabled" onchange="onPkgToggle()"> Per-Unit Sales Incentive
+      </label>
+      <div id="pkgPerunitBody" style="display:none;margin-top:10px">
+        <div class="form-grid">
+          <div class="form-group"><label>Unit Label</label><input type="text" id="pkgPerunitLabel" placeholder="e.g. Bento"></div>
+          <div class="form-group"><label>RM per Unit</label><input type="number" id="pkgPerunitRate" step="0.01" min="0" placeholder="1.00"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Company tier -->
+    <div class="mini-card" style="background:var(--surface2);margin-bottom:12px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600">
+        <input type="checkbox" id="pkgCompanyEnabled" onchange="onPkgToggle()"> Company-Performance Tier
+      </label>
+      <div id="pkgCompanyBody" style="display:none;margin-top:10px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Sales tiers — bonus = amount of the highest tier the month's company sales meets.</div>
+        <div id="pkgCompanyTiers"></div>
+        <button class="btn btn-outline btn-sm" onclick="addTierRow('pkgCompanyTiers','sales')" style="margin-top:6px">+ Add Tier</button>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-danger btn-sm js-write" id="pkgDeleteBtn" onclick="deletePackage()" style="display:none">Delete</button>
+      <button class="btn btn-outline" onclick="closePackageModal()">Cancel</button>
+      <button class="btn btn-primary js-write" onclick="savePackage()">Save Package</button>
     </div>
   </div>
 </div>
@@ -888,9 +1036,9 @@
       <div class="form-group full"><label>Notes</label><textarea id="editNotes"></textarea></div>
     </div>
     <div class="modal-actions">
-      <button class="btn btn-danger btn-sm" onclick="deleteTx(editingId)">Delete</button>
+      <button class="btn btn-danger btn-sm js-write" onclick="deleteTx(editingId)">Delete</button>
       <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveEdit()">Save Changes</button>
+      <button class="btn btn-primary js-write" onclick="saveEdit()">Save Changes</button>
     </div>
   </div>
 </div>
@@ -924,7 +1072,7 @@ async function doLogin() {
   btn.disabled = true;
   errEl.textContent = '';
 
-  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
 
   btn.textContent = 'Sign In';
   btn.disabled = false;
@@ -933,6 +1081,7 @@ async function doLogin() {
     errEl.textContent = error.message;
     document.getElementById('loginPass').value = '';
   } else {
+    sbSession = data.session;
     document.getElementById('loginScreen').classList.add('hidden');
     await syncAllFromSupabase();
   }
@@ -940,6 +1089,8 @@ async function doLogin() {
 
 async function doLogout() {
   if (sb) await sb.auth.signOut();
+  sbSession = null;
+  applyWriteableUI(false);
   document.getElementById('loginEmail').value = '';
   document.getElementById('loginPass').value  = '';
   document.getElementById('loginError').textContent = '';
@@ -949,15 +1100,21 @@ async function doLogout() {
 async function checkAuthSession() {
   if (!sb) sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   const { data: { session } } = await sb.auth.getSession();
+  sbSession = session || null;
   if (session) {
     document.getElementById('loginScreen').classList.add('hidden');
   } else {
     document.getElementById('loginScreen').classList.remove('hidden');
   }
-  // Listen for future auth changes (e.g. token expiry)
-  sb.auth.onAuthStateChange((event) => {
-    if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED' && !sb) {
+  // Keep writeability in sync with future auth changes (sign-out, token refresh/expiry)
+  sb.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_OUT') {
+      sbSession = null;
+      applyWriteableUI(false);
       document.getElementById('loginScreen').classList.remove('hidden');
+    } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      sbSession = session || sbSession;
+      if (sbSession) applyWriteableUI(true);
     }
   });
 }
@@ -1120,7 +1277,7 @@ function showPanel(name) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('panel-' + name).classList.add('active');
-  const navMap = { dashboard: 0, ledger: 1, upload: 2, entry: 3, reports: 4, employees: 6, leave: 7, payroll: 8, payhistory: 9 };
+  const navMap = { dashboard: 0, ledger: 1, upload: 2, entry: 3, reports: 4, employees: 5, leave: 6, payitems: 7, packages: 8, payroll: 9, payhistory: 10 };
   const items = document.querySelectorAll('.nav-item');
   if (navMap[name] !== undefined) items[navMap[name]]?.classList.add('active');
 
@@ -1129,6 +1286,8 @@ function showPanel(name) {
   if (name === 'reports')   { populateYearFilter(); refreshReports(); }
   if (name === 'employees')   refreshEmployeeList();
   if (name === 'leave')     { refreshLeaveApplications(); renderHolidays(); }
+  if (name === 'payitems')  { initPayItemPeriod(); refreshPayItems(); }
+  if (name === 'packages')  { refreshPackages(); }
   if (name === 'payhistory')  refreshPayHistory();
   // Payroll: initialize month/year selectors
   if (name === 'payroll') {
@@ -1367,11 +1526,11 @@ function saveManualEntry() {
     staffName: entryPClass === 'reimbursement' ? document.getElementById('entryStaffName').value.trim() : '',
     source: 'manual'
   };
-  transactions.push(newTx);
-  saveData();
-  sbUpsert('transactions', toTxRow(newTx));
-  clearEntryForm();
-  toast('Transaction saved!', 'success');
+  persist(
+    () => sbUpsert('transactions', toTxRow(newTx)),
+    () => { transactions.push(newTx); saveData(); clearEntryForm(); },
+    'Transaction saved!'
+  );
 }
 
 function clearEntryForm() {
@@ -1633,7 +1792,7 @@ function renderExtracted(loadId, filename, items, pclass = 'bill', staffName = '
     <div style="font-size:12px;color:${pclassColor};margin-bottom:12px">Tagged as: <strong>${pclassLabel}</strong></div>
     ${itemsHtml}
     <div style="display:flex;gap:10px;margin-top:12px">
-      <button class="btn btn-success" onclick="importAll('${loadId}', ${items.length}, '${pclass}', '${staffName.replace(/'/g,"\\'")}')">Import All (${items.length})</button>
+      <button class="btn btn-success js-write" onclick="importAll('${loadId}', ${items.length}, '${pclass}', '${staffName.replace(/'/g,"\\'")}')" ${canWrite()?'':'disabled'}>Import All (${items.length})</button>
       <button class="btn btn-outline" onclick="document.getElementById('proc-${loadId}').remove()">Discard</button>
     </div>
   `;
@@ -1662,21 +1821,25 @@ function importAll(loadId, count, pclass = 'bill', staffName = '') {
   const newTxs = [];
   Object.values(map).forEach(item => {
     if (!item.date || !item.amount || !item.description) return;
-    const newTx = {
+    newTxs.push({
       id: uid(), date: item.date, amount: item.amount, type: item.type || 'debit',
       account: item.account || '', description: item.description,
       category: item.category || 'Other', notes: item.notes || '', ref: '',
       paymentClass: pclass, staffName: staffName, source: 'ai-extracted'
-    };
-    transactions.push(newTx);
-    newTxs.push(newTx);
+    });
   });
+  if (!newTxs.length) { toast('Nothing to import', 'error'); return; }
 
-  saveData();
-  newTxs.forEach(t => sbUpsert('transactions', toTxRow(t)));
-  el.innerHTML = `<h4 style="color:var(--credit)">✅ ${newTxs.length} transactions imported!</h4>`;
-  setTimeout(() => el.remove(), 2000);
-  toast(`Imported ${newTxs.length} transactions`, 'success');
+  persist(
+    () => sbUpsert('transactions', newTxs.map(toTxRow)),   // one batch upsert (array)
+    () => {
+      transactions.push(...newTxs);
+      saveData();
+      el.innerHTML = `<h4 style="color:var(--credit)">✅ ${newTxs.length} transactions imported!</h4>`;
+      setTimeout(() => el.remove(), 2000);
+    },
+    `Imported ${newTxs.length} transactions`
+  );
 }
 
 // ============================================================
@@ -1718,32 +1881,34 @@ function closeModal() {
 function saveEdit() {
   const tx = transactions.find(t => t.id === editingId);
   if (!tx) return;
-  tx.date        = document.getElementById('editDate').value;
-  tx.amount      = parseFloat(document.getElementById('editAmount').value);
-  tx.type        = document.getElementById('editType').value;
-  tx.account     = document.getElementById('editAccount').value;
-  tx.description = document.getElementById('editDesc').value;
-  tx.category    = document.getElementById('editCat').value;
-  tx.ref         = document.getElementById('editRef').value;
-  tx.notes       = document.getElementById('editNotes').value;
-  tx.paymentClass = document.getElementById('editPClass').value;
-  tx.staffName   = document.getElementById('editPClass').value === 'reimbursement'
-                    ? document.getElementById('editStaffName').value : '';
-  saveData();
-  sbUpsert('transactions', toTxRow(tx));
-  closeModal();
-  refreshLedger();
-  toast('Transaction updated', 'success');
+  // Build the patch without mutating the live object until the write is confirmed
+  const patch = {
+    date:        document.getElementById('editDate').value,
+    amount:      parseFloat(document.getElementById('editAmount').value),
+    type:        document.getElementById('editType').value,
+    account:     document.getElementById('editAccount').value,
+    description: document.getElementById('editDesc').value,
+    category:    document.getElementById('editCat').value,
+    ref:         document.getElementById('editRef').value,
+    notes:       document.getElementById('editNotes').value,
+    paymentClass: document.getElementById('editPClass').value,
+    staffName:   document.getElementById('editPClass').value === 'reimbursement'
+                   ? document.getElementById('editStaffName').value : '',
+  };
+  persist(
+    () => sbUpsert('transactions', toTxRow({ ...tx, ...patch })),
+    () => { Object.assign(tx, patch); saveData(); closeModal(); refreshLedger(); },
+    'Transaction updated'
+  );
 }
 
 function deleteTx(id) {
   if (!confirm('Delete this transaction?')) return;
-  transactions = transactions.filter(t => t.id !== id);
-  saveData();
-  sbDelete('transactions', id);
-  closeModal();
-  refreshLedger();
-  toast('Transaction deleted', 'success');
+  persist(
+    () => sbDelete('transactions', id),
+    () => { transactions = transactions.filter(t => t.id !== id); saveData(); closeModal(); refreshLedger(); },
+    'Transaction deleted'
+  );
 }
 
 function updateBulkDeleteBtn() {
@@ -1764,13 +1929,16 @@ function deleteSelected() {
   if (!checked.length) return;
   if (!confirm(`Delete ${checked.length} selected transaction(s)?`)) return;
   const ids = [...checked].map(c => c.dataset.id);
-  ids.forEach(id => {
-    transactions = transactions.filter(t => t.id !== id);
-    sbDelete('transactions', id);
-  });
-  saveData();
-  refreshLedger();
-  toast(`Deleted ${ids.length} transaction(s)`, 'success');
+  persist(
+    async () => {
+      setSyncStatus('syncing');
+      const { error } = await sb.from('transactions').delete().in('id', ids);   // one batch delete
+      if (error) throw error;
+      setSyncStatus('synced');
+    },
+    () => { transactions = transactions.filter(t => !ids.includes(t.id)); saveData(); refreshLedger(); },
+    `Deleted ${ids.length} transaction(s)`
+  );
 }
 
 // ============================================================
@@ -1899,6 +2067,8 @@ function toast(msg, type = 'success') {
 let employees   = [];
 let leaveRecords = [];
 let payrollRuns = [];
+let payItems    = [];
+let bonusPackages = [];
 let editingEmpId   = null;
 
 // ── Johor 2026 Public Holidays (default seed) ──
@@ -2042,6 +2212,8 @@ function loadPayrollData() {
   try { employees    = JSON.parse(localStorage.getItem('moja_employees')   || '[]'); } catch(e) { employees = []; }
   try { leaveRecords = JSON.parse(localStorage.getItem('moja_leaves')      || '[]'); } catch(e) { leaveRecords = []; }
   try { payrollRuns  = JSON.parse(localStorage.getItem('moja_payrollruns') || '[]'); } catch(e) { payrollRuns = []; }
+  try { payItems     = JSON.parse(localStorage.getItem('moja_payitems')    || '[]'); } catch(e) { payItems = []; }
+  try { bonusPackages = JSON.parse(localStorage.getItem('moja_packages')   || '[]'); } catch(e) { bonusPackages = []; }
   try { publicHolidays = JSON.parse(localStorage.getItem('moja_holidays')  || '[]'); } catch(e) { publicHolidays = []; }
   // First run: seed from the Johor 2026 defaults so the calendar isn't empty
   if (!publicHolidays.length) {
@@ -2054,6 +2226,8 @@ function savePayrollData() {
   localStorage.setItem('moja_employees',    JSON.stringify(employees));
   localStorage.setItem('moja_leaves',       JSON.stringify(leaveRecords));
   localStorage.setItem('moja_payrollruns',  JSON.stringify(payrollRuns));
+  localStorage.setItem('moja_payitems',     JSON.stringify(payItems));
+  localStorage.setItem('moja_packages',     JSON.stringify(bonusPackages));
   localStorage.setItem('moja_holidays',     JSON.stringify(publicHolidays));
 }
 
@@ -2093,15 +2267,19 @@ function openEmpModal(id) {
   document.getElementById('empModalTitle').textContent = id ? 'Edit Employee' : 'Add Employee';
   document.getElementById('empDeleteBtn').style.display = id ? '' : 'none';
 
+  // Populate the bonus-package select before applying values
+  document.getElementById('empPackage').innerHTML =
+    '<option value="">None</option>' + bonusPackages.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+
   const fields = ['empName','empId','empIC','empPosition','empDept','empJoinDate','empSalary',
     'empWorkDays','empDailyHours','empResidency','empMarital','empChildren',
-    'empEPF','empSOCSO','empTax','empBank','empBankAcc','empStatus'];
+    'empEPF','empSOCSO','empTax','empBank','empBankAcc','empStatus','empEndDate','empPackage'];
   const map = {
     empName:'name', empId:'employeeId', empIC:'ic', empPosition:'position', empDept:'department',
     empJoinDate:'joinDate', empSalary:'basicSalary', empWorkDays:'workDays', empDailyHours:'dailyHours',
     empResidency:'residency', empMarital:'marital', empChildren:'children',
     empEPF:'epfNo', empSOCSO:'socsoNo', empTax:'taxNo', empBank:'bank', empBankAcc:'bankAcc',
-    empStatus:'status'
+    empStatus:'status', empEndDate:'endDate', empPackage:'packageId'
   };
   fields.forEach(f => {
     const el = document.getElementById(f);
@@ -2142,33 +2320,31 @@ function saveEmployee() {
     bank:        document.getElementById('empBank').value.trim(),
     bankAcc:     document.getElementById('empBankAcc').value.trim(),
     status:      document.getElementById('empStatus').value,
+    endDate:     document.getElementById('empEndDate').value || '',
+    packageId:   document.getElementById('empPackage').value || '',
   };
 
-  let savedEmp;
-  if (editingEmpId) {
-    const idx = employees.findIndex(e => e.id === editingEmpId);
-    employees[idx] = { ...employees[idx], ...data };
-    savedEmp = employees[idx];
-  } else {
-    savedEmp = { id: uid(), ...data };
-    employees.push(savedEmp);
-  }
-  savePayrollData();
-  sbUpsert('employees', toEmpRow(savedEmp));
-  closeEmpModal();
-  refreshEmployeeList();
-  toast('Employee saved', 'success');
+  // Build the candidate without mutating the array until the write is confirmed
+  const idx = editingEmpId ? employees.findIndex(e => e.id === editingEmpId) : -1;
+  const savedEmp = editingEmpId ? { ...employees[idx], ...data } : { id: uid(), ...data };
+  persist(
+    () => sbUpsert('employees', toEmpRow(savedEmp)),
+    () => {
+      if (idx >= 0) employees[idx] = savedEmp; else employees.push(savedEmp);
+      savePayrollData(); closeEmpModal(); refreshEmployeeList();
+    },
+    'Employee saved'
+  );
 }
 
 function deleteEmployee() {
   if (!confirm('Delete this employee? Leave records will remain.')) return;
   const id = editingEmpId;
-  employees = employees.filter(e => e.id !== id);
-  savePayrollData();
-  sbDelete('employees', id);
-  closeEmpModal();
-  refreshEmployeeList();
-  toast('Employee deleted', 'success');
+  persist(
+    () => sbDelete('employees', id),
+    () => { employees = employees.filter(e => e.id !== id); savePayrollData(); closeEmpModal(); refreshEmployeeList(); },
+    'Employee deleted'
+  );
 }
 
 // ── Leave Management ──
@@ -2261,32 +2437,33 @@ function saveHoliday() {
   if (!date || !name) { toast('Please enter a date and holiday name', 'error'); return; }
   if (publicHolidays.some(h => h.date === date)) { toast('A holiday already exists on that date', 'error'); return; }
   const holiday = { id: uid(), date, name, type, rate };
-  publicHolidays.push(holiday);
-  savePayrollData();
-  sbUpsert('public_holidays', toHolidayRow(holiday));
-  closeHolidayModal();
-  renderHolidays();
-  toast('Public holiday added', 'success');
+  persist(
+    () => sbUpsert('public_holidays', toHolidayRow(holiday)),
+    () => { publicHolidays.push(holiday); savePayrollData(); closeHolidayModal(); renderHolidays(); },
+    'Public holiday added'
+  );
 }
 
 function updateHolidayRate(id, val) {
   const h = publicHolidays.find(x => x.id === id);
   if (!h) return;
-  h.rate = parseFloat(val) || 1.5;
-  savePayrollData();
-  sbUpsert('public_holidays', toHolidayRow(h));
-  toast(`Rate set to ${h.rate}×`, 'success');
+  const rate = parseFloat(val) || 1.5;
+  persist(
+    () => sbUpsert('public_holidays', toHolidayRow({ ...h, rate })),
+    () => { h.rate = rate; savePayrollData(); },
+    `Rate set to ${rate}×`
+  ).then(ok => { if (!ok) renderHolidays(); });   // revert the <select> to server value on failure
 }
 
 function deleteHoliday(id) {
   const h = publicHolidays.find(x => x.id === id);
   if (!h) return;
   if (!confirm(`Remove "${h.name}" (${h.date})?`)) return;
-  publicHolidays = publicHolidays.filter(x => x.id !== id);
-  savePayrollData();
-  sbDelete('public_holidays', id);
-  renderHolidays();
-  toast('Public holiday removed', 'success');
+  persist(
+    () => sbDelete('public_holidays', id),
+    () => { publicHolidays = publicHolidays.filter(x => x.id !== id); savePayrollData(); renderHolidays(); },
+    'Public holiday removed'
+  );
 }
 
 function openLeaveModal() {
@@ -2324,95 +2501,493 @@ function saveLeave() {
   if (to < from) { toast('End date must be ≥ start date', 'error'); return; }
   const days = workingDaysBetween(from, to);
   const newLeave = { id: uid(), employeeId: empId, type, from, to, days, status, reason };
-  leaveRecords.push(newLeave);
-  savePayrollData();
-  sbUpsert('leave_records', toLeaveRow(newLeave));
-  closeLeaveModal();
-  refreshLeaveApplications();
-  toast(`${days} working day(s) leave recorded`, 'success');
+  persist(
+    () => sbUpsert('leave_records', toLeaveRow(newLeave)),
+    () => { leaveRecords.push(newLeave); savePayrollData(); closeLeaveModal(); refreshLeaveApplications(); },
+    `${days} working day(s) leave recorded`
+  );
 }
 
 function deleteLeave(id) {
   if (!confirm('Remove this leave record?')) return;
-  leaveRecords = leaveRecords.filter(r => r.id !== id);
-  savePayrollData();
-  sbDelete('leave_records', id);
-  refreshLeaveApplications();
-  toast('Leave removed', 'success');
+  persist(
+    () => sbDelete('leave_records', id),
+    () => { leaveRecords = leaveRecords.filter(r => r.id !== id); savePayrollData(); refreshLeaveApplications(); },
+    'Leave removed'
+  );
+}
+
+// ── Pay Items (allowance / claim / overtime / PH) ──
+
+// Statutory treatment by type: allowance/overtime/ph are wages (EPF/SOCSO/EIS/PCB
+// apply); claim/reimbursement is exempt (paid on top of net, not subject to deductions).
+function isStatutoryEarning(type) { return type !== 'claim'; }
+
+// Amount in RM for a pay item. Allowance/claim use the stored amount; overtime & PH
+// are recomputed against the employee's current basic salary so a later salary edit
+// keeps them correct. Reuses calcOT / calcPHPay.
+function computePayItemAmount(item, emp) {
+  const basic = parseFloat(emp && emp.basicSalary) || 0;
+  const dh    = parseInt(emp && emp.dailyHours) || 8;
+  if (item.type === 'overtime') return calcOT(basic, dh, [{ type: item.otType, hours: item.hours || 0 }]);
+  if (item.type === 'ph')       return calcPHPay(basic, item.phDays || 0, holidaysInMonth(item.year, item.month));
+  return Math.round((parseFloat(item.amount) || 0) * 100) / 100; // allowance / claim
+}
+
+// Approved leave working-days (Mon–Fri, minus PH) per type, clipped to the given month.
+function leaveBreakdownInMonth(empId, year, month) {
+  const out = { unpaid:0, annual:0, medical:0, emergency:0, maternity:0, paternity:0, total:0 };
+  const phs = phSet();
+  const monthStart = new Date(year, month - 1, 1);
+  const monthEnd   = new Date(year, month, 0);
+  leaveRecords.filter(r => r.employeeId === empId && r.status === 'approved').forEach(r => {
+    const from = new Date(r.from + 'T00:00:00');
+    const to   = new Date(r.to   + 'T00:00:00');
+    let cur    = from > monthStart ? new Date(from) : new Date(monthStart);
+    const end  = to   < monthEnd   ? to             : monthEnd;
+    while (cur <= end) {
+      const dow = cur.getDay();
+      const ds  = `${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}-${String(cur.getDate()).padStart(2,'0')}`;
+      if (dow > 0 && dow < 6 && !phs.has(ds)) {
+        out[r.type] = (out[r.type] || 0) + 1;
+        out.total++;
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+  });
+  return out;
+}
+
+// Sum of a single employee's pay items for a period, split by statutory treatment.
+function payItemTotals(empId, year, month, emp) {
+  const items = payItems.filter(p => p.employeeId === empId && p.year === year && p.month === month);
+  let allowances = 0, otAmt = 0, phPay = 0, claims = 0;
+  for (const p of items) {
+    const amt = computePayItemAmount(p, emp);
+    if (p.type === 'allowance') allowances += amt;
+    else if (p.type === 'overtime') otAmt += amt;
+    else if (p.type === 'ph') phPay += amt;
+    else if (p.type === 'claim') claims += amt;
+  }
+  const r2 = n => Math.round(n * 100) / 100;
+  return { allowances: r2(allowances), otAmt: r2(otAmt), phPay: r2(phPay), claims: r2(claims) };
+}
+
+// ── Pro-ration + bonus helpers ──
+
+// Calendar days an employee is employed within a month, clipped to [join, endDate].
+function employedDaysInMonth(emp, year, month) {
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const monthStart = new Date(year, month - 1, 1);
+  const monthEnd   = new Date(year, month - 1, daysInMonth);
+  const join = emp.joinDate ? new Date(emp.joinDate + 'T00:00:00') : monthStart;
+  const end  = emp.endDate  ? new Date(emp.endDate  + 'T00:00:00') : monthEnd;
+  const start = join > monthStart ? join : monthStart;
+  const stop  = end  < monthEnd   ? end  : monthEnd;
+  let daysEmployed = 0;
+  if (stop >= start) daysEmployed = Math.round((stop - start) / 86400000) + 1;  // inclusive
+  daysEmployed = Math.max(0, Math.min(daysEmployed, daysInMonth));
+  return { daysEmployed, daysInMonth, prorated: daysEmployed < daysInMonth };
+}
+
+// EA 1955 incomplete-month: Basic ÷ days-in-month × days employed.
+function proratedBasic(basic, emp, year, month) {
+  const { daysEmployed, daysInMonth } = employedDaysInMonth(emp, year, month);
+  if (daysEmployed >= daysInMonth) return Math.round(basic * 100) / 100;
+  return Math.round(basic / daysInMonth * daysEmployed * 100) / 100;
+}
+
+// Bonus from the employee's package + monthly inputs. Returns {total, breakdown[]}.
+function calcBonus(emp, inputs, companySales) {
+  const p = bonusPackages.find(x => x.id === emp.packageId);
+  if (!p) return { total: 0, breakdown: [] };
+  const breakdown = [];
+  let total = 0;
+  const sopScore = parseFloat(inputs && inputs.sopScore) || 0;
+  const units    = parseFloat(inputs && inputs.units) || 0;
+  if (p.sopEnabled) {
+    const tier = (p.sopTiers || []).filter(t => sopScore >= t.minScore).sort((a,b)=>b.minScore-a.minScore)[0];
+    if (tier) { total += tier.amount; breakdown.push({ label: `SOP performance (score ${sopScore} ≥ ${tier.minScore})`, amount: tier.amount }); }
+  }
+  if (p.perunitEnabled && units > 0) {
+    const amt = Math.round(units * (p.perunitRate || 0) * 100) / 100;
+    total += amt; breakdown.push({ label: `${units} × ${p.perunitLabel||'unit'} @ RM${fmt2(p.perunitRate||0)}`, amount: amt });
+  }
+  if (p.companyEnabled) {
+    const cs = parseFloat(companySales) || 0;
+    const tier = (p.companyTiers || []).filter(t => cs >= t.minSales).sort((a,b)=>b.minSales-a.minSales)[0];
+    if (tier) { total += tier.amount; breakdown.push({ label: `Company sales ≥ RM${fmt2(tier.minSales)}`, amount: tier.amount }); }
+  }
+  return { total: Math.round(total * 100) / 100, breakdown };
+}
+
+// Default monthly company sales = recorded income (credit) for that month.
+function companySalesForMonth(year, month) {
+  const prefix = `${year}-${String(month).padStart(2,'0')}`;
+  return Math.round(transactions
+    .filter(t => t.type === 'credit' && (t.date || '').startsWith(prefix))
+    .reduce((s, t) => s + (parseFloat(t.amount) || 0), 0) * 100) / 100;
+}
+
+const PI_MONTHS = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function initPayItemPeriod() {
+  const now = new Date();
+  const m = document.getElementById('piMonth'), y = document.getElementById('piYear');
+  m.value = now.getMonth() + 1;
+  if ([...y.options].some(o => o.value == now.getFullYear())) y.value = now.getFullYear();
+}
+
+function refreshPayItems() {
+  const month = parseInt(document.getElementById('piMonth').value);
+  const year  = parseInt(document.getElementById('piYear').value);
+  const tbody = document.getElementById('payItemTbody');
+  const items = payItems.filter(p => p.month === month && p.year === year);
+  if (!items.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No pay items for this period</td></tr>'; return; }
+  const typeLabels = { allowance:'Allowance', claim:'Claim / Reimburse', overtime:'Overtime', ph:'Public Holiday' };
+  const otLabels   = { weekday:'weekday 1.5×', restday:'rest day 2×', holiday:'holiday 3×' };
+  const rows = items.map(p => {
+    const emp  = employees.find(e => e.id === p.employeeId);
+    const name = emp ? emp.name : '(removed employee)';
+    const amt  = computePayItemAmount(p, emp);
+    let detail = p.label || '';
+    if (p.type === 'overtime') detail = `${p.hours||0}h · ${otLabels[p.otType] || p.otType}`;
+    else if (p.type === 'ph')  detail = `${p.phDays||0} PH day(s) worked`;
+    if (p.notes) detail += `<br><span style="font-size:11px;color:var(--muted)">${p.notes}</span>`;
+    const badge = isStatutoryEarning(p.type)
+      ? '<span class="leave-chip leave-approved">Applicable</span>'
+      : '<span class="leave-chip leave-unpaid">Exempt</span>';
+    return { name, html: `
+      <tr>
+        <td><strong>${name}</strong></td>
+        <td>${typeLabels[p.type] || p.type}</td>
+        <td>${detail || '—'}</td>
+        <td>RM ${fmt2(amt)}</td>
+        <td>${badge}</td>
+        <td><button class="btn btn-outline btn-sm" onclick="deletePayItem('${p.id}')">Delete</button></td>
+      </tr>` };
+  }).sort((a,b) => a.name.localeCompare(b.name));
+  tbody.innerHTML = rows.map(r => r.html).join('');
+}
+
+function openPayItemModal() {
+  const sel = document.getElementById('piEmpSel');
+  sel.innerHTML = employees.filter(e => e.status === 'active').map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+  if (!sel.options.length) { toast('Add employees first', 'error'); return; }
+  const m = parseInt(document.getElementById('piMonth').value);
+  const y = parseInt(document.getElementById('piYear').value);
+  document.getElementById('piPeriodLabel').textContent = `Recording for: ${PI_MONTHS[m]} ${y}`;
+  document.getElementById('piType').value   = 'allowance';
+  document.getElementById('piLabel').value  = '';
+  document.getElementById('piAmount').value = '';
+  document.getElementById('piHours').value  = '';
+  document.getElementById('piPhDays').value = '';
+  document.getElementById('piNotes').value  = '';
+  document.getElementById('piOtType').value = 'weekday';
+  onPayItemTypeChange();
+  document.getElementById('payItemModal').classList.add('open');
+}
+function closePayItemModal() { document.getElementById('payItemModal').classList.remove('open'); }
+
+function onPayItemTypeChange() {
+  const type = document.getElementById('piType').value;
+  const show = (id, on) => document.getElementById(id).style.display = on ? '' : 'none';
+  const isAmt = (type === 'allowance' || type === 'claim');
+  show('piLabelGroup',  isAmt);
+  show('piAmountGroup', isAmt);
+  show('piOtTypeGroup', type === 'overtime');
+  show('piHoursGroup',  type === 'overtime');
+  show('piPhDaysGroup', type === 'ph');
+  document.getElementById('piLabelLbl').textContent = (type === 'claim') ? 'Claim Description' : 'Label';
+
+  const emp = employees.find(e => e.id === document.getElementById('piEmpSel').value);
+  const m = parseInt(document.getElementById('piMonth').value);
+  const y = parseInt(document.getElementById('piYear').value);
+  if (type === 'ph') document.getElementById('piPhDays').max = holidaysInMonth(y, m).length;
+  const draft = {
+    type, year: y, month: m,
+    amount: parseFloat(document.getElementById('piAmount').value) || 0,
+    otType: document.getElementById('piOtType').value,
+    hours:  parseFloat(document.getElementById('piHours').value) || 0,
+    phDays: parseInt(document.getElementById('piPhDays').value) || 0,
+  };
+  const amt = computePayItemAmount(draft, emp);
+  document.getElementById('piComputed').textContent = 'RM ' + fmt2(amt);
+  let hint = '';
+  if (type === 'overtime' && emp) {
+    const basic = parseFloat(emp.basicSalary) || 0, dh = parseInt(emp.dailyHours) || 8;
+    hint = `Hourly rate = Basic÷26÷${dh} = RM ${fmt2(basic/26/dh)}  →  × multiplier × ${draft.hours}h`;
+  } else if (type === 'ph') {
+    hint = `${holidaysInMonth(y, m).length} public holiday(s) this month · rate × Basic÷26 per day`;
+  } else if (type === 'claim') {
+    hint = 'Exempt — added to net pay, not subject to EPF/SOCSO/EIS/PCB';
+  } else {
+    hint = 'Subject to EPF/SOCSO/EIS/PCB';
+  }
+  document.getElementById('piComputedHint').textContent = hint;
+}
+
+function savePayItem() {
+  const empId = document.getElementById('piEmpSel').value;
+  const type  = document.getElementById('piType').value;
+  if (!empId) { toast('Select an employee', 'error'); return; }
+  const emp = employees.find(e => e.id === empId);
+  const m = parseInt(document.getElementById('piMonth').value);
+  const y = parseInt(document.getElementById('piYear').value);
+  const notes = document.getElementById('piNotes').value.trim();
+  const item = { id: uid(), employeeId: empId, month: m, year: y, type, label:'', otType:'', hours:0, phDays:0, amount:0, notes };
+
+  if (type === 'allowance' || type === 'claim') {
+    const amount = parseFloat(document.getElementById('piAmount').value) || 0;
+    if (amount <= 0) { toast('Enter an amount greater than 0', 'error'); return; }
+    item.label  = document.getElementById('piLabel').value.trim();
+    item.amount = Math.round(amount * 100) / 100;
+  } else if (type === 'overtime') {
+    const hours = parseFloat(document.getElementById('piHours').value) || 0;
+    if (hours <= 0) { toast('Enter overtime hours', 'error'); return; }
+    item.otType = document.getElementById('piOtType').value;
+    item.hours  = hours;
+    item.amount = computePayItemAmount(item, emp);
+  } else if (type === 'ph') {
+    const nPh = holidaysInMonth(y, m).length;
+    if (!nPh) { toast('No public holidays in this month', 'error'); return; }
+    const phDays = Math.min(Math.max(parseInt(document.getElementById('piPhDays').value) || 0, 0), nPh);
+    if (phDays <= 0) { toast('Enter PH days worked', 'error'); return; }
+    item.phDays = phDays;
+    item.amount = computePayItemAmount(item, emp);
+  }
+
+  persist(
+    () => sbUpsert('pay_items', toPayItemRow(item)),
+    () => { payItems.push(item); savePayrollData(); closePayItemModal(); refreshPayItems(); },
+    'Pay item saved'
+  );
+}
+
+function deletePayItem(id) {
+  if (!confirm('Remove this pay item?')) return;
+  persist(
+    () => sbDelete('pay_items', id),
+    () => { payItems = payItems.filter(p => p.id !== id); savePayrollData(); refreshPayItems(); },
+    'Pay item removed'
+  );
+}
+
+// ── Bonus Packages (admin-configurable) ──
+let editingPkgId = null;
+
+function pkgSummary(p) {
+  const parts = [];
+  if (p.sopEnabled)     parts.push(`SOP (${(p.sopTiers||[]).length} tier${(p.sopTiers||[]).length===1?'':'s'})`);
+  if (p.perunitEnabled) parts.push(`${p.perunitLabel||'unit'} @ RM${fmt2(p.perunitRate||0)}`);
+  if (p.companyEnabled) parts.push(`Company (${(p.companyTiers||[]).length} tier${(p.companyTiers||[]).length===1?'':'s'})`);
+  return parts.length ? parts.join(' · ') : 'No components';
+}
+
+function refreshPackages() {
+  const el = document.getElementById('packageList');
+  if (!bonusPackages.length) { el.innerHTML = '<div class="empty" style="padding:48px;text-align:center;color:var(--muted)">No packages yet</div>'; return; }
+  el.innerHTML = bonusPackages.map(p => `
+    <div class="emp-card" onclick="openPackageModal('${p.id}')" style="cursor:pointer">
+      <div class="emp-avatar" style="background:var(--accent2);font-size:14px">🏆</div>
+      <div class="emp-info">
+        <div class="emp-name">${p.name}</div>
+        <div class="emp-sub">${pkgSummary(p)}</div>
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+          <span class="stat-pill">${employees.filter(e=>e.packageId===p.id).length} employee(s)</span>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// Add one tier input row. kind = 'score' (SOP) or 'sales' (company).
+function addTierRow(containerId, kind, first = '', amount = '') {
+  const c = document.getElementById(containerId);
+  const row = document.createElement('div');
+  row.className = 'pkg-tier-row';
+  row.style.cssText = 'display:flex;gap:8px;margin-bottom:6px;align-items:center';
+  const firstPh = kind === 'score' ? 'Min score' : 'Min sales (RM)';
+  row.innerHTML =
+    `<input type="number" step="${kind==='score'?'1':'0.01'}" min="0" class="pkg-tier-first" placeholder="${firstPh}" value="${first}" style="flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:5px 7px;border-radius:5px;font-size:12px">` +
+    `<span style="color:var(--muted);font-size:12px">→ RM</span>` +
+    `<input type="number" step="0.01" min="0" class="pkg-tier-amount" placeholder="Amount" value="${amount}" style="flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:5px 7px;border-radius:5px;font-size:12px">` +
+    `<button class="btn btn-outline btn-sm" onclick="this.parentElement.remove()">✕</button>`;
+  c.appendChild(row);
+}
+
+// Read tier rows back into [{<firstKey>, amount}] sorted descending by threshold.
+function readTiers(containerId, firstKey) {
+  return [...document.getElementById(containerId).querySelectorAll('.pkg-tier-row')]
+    .map(r => ({
+      [firstKey]: parseFloat(r.querySelector('.pkg-tier-first').value) || 0,
+      amount:     parseFloat(r.querySelector('.pkg-tier-amount').value) || 0,
+    }))
+    .filter(t => t.amount > 0)
+    .sort((a, b) => b[firstKey] - a[firstKey]);
+}
+
+function onPkgToggle() {
+  document.getElementById('pkgSopBody').style.display     = document.getElementById('pkgSopEnabled').checked ? '' : 'none';
+  document.getElementById('pkgPerunitBody').style.display = document.getElementById('pkgPerunitEnabled').checked ? '' : 'none';
+  document.getElementById('pkgCompanyBody').style.display = document.getElementById('pkgCompanyEnabled').checked ? '' : 'none';
+}
+
+function openPackageModal(id) {
+  editingPkgId = id || null;
+  const p = id ? bonusPackages.find(x => x.id === id) : null;
+  document.getElementById('packageModalTitle').textContent = id ? 'Edit Bonus Package' : 'Add Bonus Package';
+  document.getElementById('pkgDeleteBtn').style.display = id ? '' : 'none';
+  document.getElementById('pkgName').value = p ? p.name : '';
+  document.getElementById('pkgSopEnabled').checked     = p ? p.sopEnabled : false;
+  document.getElementById('pkgPerunitEnabled').checked = p ? p.perunitEnabled : false;
+  document.getElementById('pkgCompanyEnabled').checked = p ? p.companyEnabled : false;
+  document.getElementById('pkgPerunitLabel').value = p ? (p.perunitLabel||'') : '';
+  document.getElementById('pkgPerunitRate').value  = p ? (p.perunitRate||'') : '';
+  document.getElementById('pkgSopTiers').innerHTML = '';
+  document.getElementById('pkgCompanyTiers').innerHTML = '';
+  (p && p.sopTiers || []).forEach(t => addTierRow('pkgSopTiers', 'score', t.minScore, t.amount));
+  (p && p.companyTiers || []).forEach(t => addTierRow('pkgCompanyTiers', 'sales', t.minSales, t.amount));
+  onPkgToggle();
+  document.getElementById('packageModal').classList.add('open');
+}
+function closePackageModal() { document.getElementById('packageModal').classList.remove('open'); editingPkgId = null; }
+
+function savePackage() {
+  const name = document.getElementById('pkgName').value.trim();
+  if (!name) { toast('Enter a package name', 'error'); return; }
+  const pkg = {
+    id: editingPkgId || uid(), name,
+    sopEnabled:     document.getElementById('pkgSopEnabled').checked,
+    sopTiers:       readTiers('pkgSopTiers', 'minScore'),
+    perunitEnabled: document.getElementById('pkgPerunitEnabled').checked,
+    perunitLabel:   document.getElementById('pkgPerunitLabel').value.trim() || 'unit',
+    perunitRate:    parseFloat(document.getElementById('pkgPerunitRate').value) || 0,
+    companyEnabled: document.getElementById('pkgCompanyEnabled').checked,
+    companyTiers:   readTiers('pkgCompanyTiers', 'minSales'),
+  };
+  const idx = editingPkgId ? bonusPackages.findIndex(x => x.id === editingPkgId) : -1;
+  persist(
+    () => sbUpsert('bonus_packages', toPackageRow(pkg)),
+    () => {
+      if (idx >= 0) bonusPackages[idx] = pkg; else bonusPackages.push(pkg);
+      savePayrollData(); closePackageModal(); refreshPackages();
+    },
+    'Package saved'
+  );
+}
+
+function deletePackage() {
+  const id = editingPkgId;
+  if (!id) return;
+  const inUse = employees.filter(e => e.packageId === id).length;
+  if (!confirm(`Delete this package?${inUse ? ` ${inUse} employee(s) are assigned and will have no package.` : ''}`)) return;
+  persist(
+    () => sbDelete('bonus_packages', id),
+    () => {
+      bonusPackages = bonusPackages.filter(p => p.id !== id);
+      employees.forEach(e => { if (e.packageId === id) e.packageId = ''; });
+      savePayrollData(); closePackageModal(); refreshPackages();
+    },
+    'Package removed'
+  );
 }
 
 // ── Payroll Processing ──
+
+// Recompute one entry's statutory figures from its earnings. Statutory gross =
+// (pro-rated) basic − unpaid + allowances + overtime + PH pay + commission + bonus
+// (all wages). Claims/reimbursements are exempt and added to net pay after deductions.
+function recalcEntry(entry, emp, companySales) {
+  const basic = parseFloat(entry.basicSalary) || 0;
+  const earnedBasic = entry.proratedBasic != null ? entry.proratedBasic : basic;
+  const bonusRes = calcBonus(emp || {}, { sopScore: entry.sopScore, units: entry.units }, companySales);
+  entry.bonus = bonusRes.total;
+  entry.bonusBreakdown = bonusRes.breakdown;
+  const gross = Math.round((earnedBasic - (entry.unpaidAmt||0) + (entry.allowances||0)
+    + (entry.otAmt||0) + (entry.phPay||0) + (entry.commission||0) + (entry.bonus||0)) * 100) / 100;
+  const epf   = calcEPF(gross);
+  const socso = calcSOCSO(gross);
+  const eis   = calcEIS(gross);
+  const pcb   = calcPCB(gross * 12, (emp&&emp.marital)||'single',
+                        (emp&&emp.marital) === 'married-spouse-not-working',
+                        (emp&&emp.children) || 0, (emp&&emp.residency)||'resident');
+  const totalDeductions = Math.round((epf.employee + socso.employee + eis.employee + pcb) * 100) / 100;
+  entry.gross = gross;
+  entry.epfEmployee = epf.employee; entry.epfEmployer = epf.employer;
+  entry.socsoEmployee = socso.employee; entry.socsoEmployer = socso.employer;
+  entry.eisEmployee = eis.employee; entry.eisEmployer = eis.employer;
+  entry.pcb = pcb;
+  entry.totalDeductions = totalDeductions;
+  entry.netPay = Math.round((gross - totalDeductions + (entry.claims||0)) * 100) / 100;
+  entry.employerCost = Math.round((gross + epf.employer + socso.employer + eis.employer) * 100) / 100;
+  return entry;
+}
+
 function generatePayroll() {
   const month = parseInt(document.getElementById('payMonth').value);
   const year  = parseInt(document.getElementById('payYear').value);
-  const active = employees.filter(e => e.status === 'active');
-  if (!active.length) { toast('No active employees', 'error'); return; }
+  const monthStart = `${year}-${String(month).padStart(2,'0')}-01`;
+  // Include active staff plus mid-month leavers (inactive but last working day is in/after this month)
+  const eligible = employees.filter(e => {
+    if (e.status === 'active') return employedDaysInMonth(e, year, month).daysEmployed > 0;
+    return e.endDate && e.endDate >= monthStart && employedDaysInMonth(e, year, month).daysEmployed > 0;
+  });
+  if (!eligible.length) { toast('No employees to pay for this month', 'error'); return; }
 
   const existing = payrollRuns.find(r => r.month === month && r.year === year && r.status === 'finalized');
   if (existing) { toast('Payroll for this month is already finalized', 'error'); return; }
 
-  const wdMonth = workingDaysInMonth(year, month);
-  const monthStr = `${year}-${String(month).padStart(2,'0')}`;
   const monthHolidays = holidaysInMonth(year, month);
+  // Carry over in-session performance inputs / company-sales override if a draft exists for this period
+  const prev = (document.getElementById('payrollWorkspace')._run) || null;
+  const prevSame = prev && prev.month === month && prev.year === year && prev.status === 'draft';
+  const companySales = prevSame && prev.companySales != null ? prev.companySales : companySalesForMonth(year, month);
+  const prevEntry = id => prevSame ? prev.entries.find(x => x.employeeId === id) : null;
 
-  // Get approved unpaid leaves for this month
-  function unpaidDays(empId) {
-    return leaveRecords.filter(r =>
-      r.employeeId === empId && r.status === 'approved' && r.type === 'unpaid' &&
-      (r.from.startsWith(monthStr) || r.to.startsWith(monthStr))
-    ).reduce((s,r) => s + r.days, 0);
-  }
+  const entries = eligible.map(e => {
+    const basic     = parseFloat(e.basicSalary) || 0;
+    const att       = leaveBreakdownInMonth(e.id, year, month);   // paid + unpaid leave days this month
+    const emp        = employedDaysInMonth(e, year, month);
+    const pbasic     = proratedBasic(basic, e, year, month);
+    const unpaidAmt = Math.round((att.unpaid || 0) * (basic / 26) * 100) / 100;
+    const pi        = payItemTotals(e.id, year, month, e);         // allowance / OT / PH / claims from Pay Items
+    const carried    = prevEntry(e.id);
 
-  const entries = active.map(e => {
-    const basic    = parseFloat(e.basicSalary);
-    const unpaid   = unpaidDays(e.id);
-    const dailyRate = basic / 26;
-    const unpaidAmt = Math.round(unpaidDays(e.id) * dailyRate * 100) / 100;
-    // OT entries: default empty (user can edit before finalizing)
-    const otEntries = [];
-    const otAmt = 0;
-    const allowances = 0;
-    const commission = 0;
-    // Public holiday pay auto-calculated from PH days worked (default 0)
-    const phWorkedDays = 0;
-    const phPay = calcPHPay(basic, phWorkedDays, monthHolidays);
-    const gross = Math.round((basic - unpaidAmt + allowances + otAmt + commission + phPay) * 100) / 100;
-
-    const age60 = false; // could derive from IC if available
-    const epf   = calcEPF(gross, age60);
-    const socso = calcSOCSO(gross);
-    const eis   = calcEIS(gross);
-    const pcb   = calcPCB(gross * 12, e.marital, e.marital === 'married-spouse-not-working', e.children || 0, e.residency);
-
-    const totalDeductions = epf.employee + socso.employee + eis.employee + pcb;
-    const netPay = Math.round((gross - totalDeductions) * 100) / 100;
-    const employerCost = gross + epf.employer + socso.employer + eis.employer;
-
-    return {
+    const entry = {
       employeeId: e.id, employeeName: e.name, position: e.position,
-      basicSalary: basic, unpaidDays: unpaid, unpaidAmt,
-      otHours: 0, otAmt,
-      allowances,
-      commission,
-      phWorkedDays, phPay,
-      gross,
-      epfEmployee: epf.employee, epfEmployer: epf.employer,
-      socsoEmployee: socso.employee, socsoEmployer: socso.employer,
-      eisEmployee: eis.employee, eisEmployer: eis.employer,
-      pcb,
-      totalDeductions: Math.round(totalDeductions * 100)/100,
-      netPay,
-      employerCost: Math.round(employerCost * 100)/100,
+      basicSalary: basic, proratedBasic: pbasic,
+      daysEmployed: emp.daysEmployed, daysInMonth: emp.daysInMonth,
+      unpaidDays: att.unpaid || 0, unpaidAmt,
+      attendance: att,
+      allowances: pi.allowances,
+      otAmt: pi.otAmt,
+      phPay: pi.phPay,
+      claims: pi.claims,
+      commission: carried ? (carried.commission||0) : 0,
+      sopScore: carried ? (carried.sopScore||0) : 0,
+      units:    carried ? (carried.units||0) : 0,
+      packageId: e.packageId || '',
     };
+    return recalcEntry(entry, e, companySales);
   });
 
-  renderPayrollWorkspace({ id: uid(), month, year, entries, status: 'draft', holidays: monthHolidays });
+  renderPayrollWorkspace({ id: uid(), month, year, entries, status: 'draft', holidays: monthHolidays, companySales });
 }
 
 function renderPayrollWorkspace(run) {
   const monthNames = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
   if (!run.holidays) run.holidays = holidaysInMonth(run.year, run.month);
   const monthHolidays = run.holidays;
+  const wdMonth = workingDaysInMonth(run.year, run.month);
+  // Compact attendance summary for a payroll entry (working days + leave taken this month)
+  const attSummary = (e) => {
+    const att = e.attendance || {};
+    const abbr = { annual:'AL', medical:'MC', emergency:'EL', maternity:'Mat', paternity:'Pat', unpaid:'Unpaid' };
+    const parts = Object.keys(abbr).filter(k => (att[k]||0) > 0).map(k => `${abbr[k]} ${att[k]}`);
+    const worked = Math.max(wdMonth - (att.total||0), 0);
+    return `<span title="Working days this month: ${wdMonth}">${worked}/${wdMonth} wd</span>` +
+           (parts.length ? `<br><span style="font-size:10px;color:var(--muted)">${parts.join(' · ')}</span>` : '');
+  };
   const totalGross = run.entries.reduce((s,e)=>s+e.gross,0);
   const totalNet   = run.entries.reduce((s,e)=>s+e.netPay,0);
   const totalCost  = run.entries.reduce((s,e)=>s+e.employerCost,0);
@@ -2420,21 +2995,39 @@ function renderPayrollWorkspace(run) {
   const totalSOCSer= run.entries.reduce((s,e)=>s+e.socsoEmployer,0);
   const totalEISer = run.entries.reduce((s,e)=>s+e.eisEmployer,0);
 
+  // Which bonus columns are relevant for this run's employees
+  const pkgOf = e => bonusPackages.find(x => x.id === e.packageId);
+  const anySop     = run.entries.some(e => { const p = pkgOf(e); return p && p.sopEnabled; });
+  const anyUnit    = run.entries.some(e => { const p = pkgOf(e); return p && p.perunitEnabled; });
+  const anyCompany = run.entries.some(e => { const p = pkgOf(e); return p && p.companyEnabled; });
+  const anyBonus   = run.entries.some(e => !!pkgOf(e));
+  const bonusHeads = `${anySop?'<th>SOP Score</th>':''}${anyUnit?'<th>Units</th>':''}${anyBonus?'<th>Bonus</th>':''}`;
+  const bonusTotalCells = `${anySop?'<td></td>':''}${anyUnit?'<td></td>':''}${anyBonus?`<td>RM ${fmt2(run.entries.reduce((s,e)=>s+(e.bonus||0),0))}</td>`:''}`;
+
   const ws = document.getElementById('payrollWorkspace');
   ws.innerHTML = `
     <div class="page-header" style="margin-bottom:16px">
       <h3>${monthNames[run.month]} ${run.year} — Draft Payroll</h3>
       <div style="display:flex;gap:8px">
-        ${run.status==='draft'?`<button class="btn btn-success" onclick="finalizePayroll('${run.id}')">✅ Finalize & Post to Expenses</button>`:'<span style="color:var(--credit);font-weight:600">✅ Finalized</span>'}
+        ${run.status==='draft'?`<button class="btn btn-success js-write" onclick="finalizePayroll('${run.id}')" ${canWrite()?'':'disabled'}>✅ Finalize & Post to Expenses</button>`:'<span style="color:var(--credit);font-weight:600">✅ Finalized</span>'}
       </div>
     </div>
 
     ${monthHolidays.length ? `
     <div class="mini-card" style="margin-bottom:16px;background:var(--surface2)">
-      <div class="lbl" style="margin-bottom:6px">🎌 ${monthHolidays.length} public holiday(s) this month — enter PH days worked per employee to auto-calculate pay (EA 1955: rate × Basic÷26 per day)</div>
+      <div class="lbl" style="margin-bottom:6px">🎌 ${monthHolidays.length} public holiday(s) this month — record PH days worked per employee under <strong>Pay Items</strong> (EA 1955: rate × Basic÷26 per day)</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         ${monthHolidays.map(h => `<span class="stat-pill">${h.date} · ${h.name} <strong>${(h.rate||1.5)}×</strong></span>`).join('')}
       </div>
+    </div>` : ''}
+
+    ${anyCompany ? `
+    <div class="mini-card" style="margin-bottom:16px;background:var(--surface2);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div class="lbl" style="margin:0">🏢 Company Sales — ${monthNames[run.month]} ${run.year}</div>
+      ${run.status==='draft'
+        ? `<input type="number" step="0.01" value="${run.companySales||0}" onchange="updateCompanySales(this.value)" style="width:150px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:5px;font-size:13px">`
+        : `<strong>RM ${fmt2(run.companySales||0)}</strong>`}
+      <span style="font-size:11px;color:var(--muted)">Pre-filled from recorded income (credit) — editable. Drives the company-tier bonus.</span>
     </div>` : ''}
 
     <div class="payroll-summary-grid">
@@ -2452,7 +3045,7 @@ function renderPayrollWorkspace(run) {
       <div style="overflow-x:auto">
       <table class="pay-table">
         <thead><tr>
-          <th>Employee</th><th>Basic (RM)</th><th>Allowance</th><th>Commission</th><th>PH Worked</th><th>PH Pay</th><th>OT</th><th>Gross</th>
+          <th>Employee</th><th>Basic (RM)</th><th>Attendance</th><th>Allowance</th><th>OT</th><th>PH Pay</th><th>Commission</th>${bonusHeads}<th>Claims</th><th>Gross</th>
           <th>EPF (ee)</th><th>SOCSO (ee)</th><th>EIS (ee)</th><th>PCB</th>
           <th>Total Deduct</th><th style="color:var(--credit)">Net Pay</th>
           <th>EPF (er)</th><th>SOCSO (er)</th><th>EIS (er)</th><th>Total Employer</th>
@@ -2466,28 +3059,21 @@ function renderPayrollWorkspace(run) {
               ${run.status==='draft'
                 ? `<input type="number" value="${e.basicSalary}" step="0.01" style="width:90px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:12px" onchange="updatePayEntry(${i},'basicSalary',this.value)">`
                 : fmt2(e.basicSalary)}
+              ${(e.proratedBasic!=null && e.proratedBasic < e.basicSalary)?`<br><span style="font-size:10px;color:#ffc800" title="EA 1955: Basic ÷ ${e.daysInMonth} × ${e.daysEmployed}">prorated ${e.daysEmployed}/${e.daysInMonth} → RM ${fmt2(e.proratedBasic)}</span>`:''}
             </td>
-            <td>
-              ${run.status==='draft'
-                ? `<input type="number" value="${e.allowances}" step="0.01" style="width:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:12px" onchange="updatePayEntry(${i},'allowances',this.value)">`
-                : fmt2(e.allowances)}
-            </td>
+            <td style="font-size:11px">${attSummary(e)}${e.unpaidAmt?`<br><span style="font-size:10px;color:var(--debit)">- RM ${fmt2(e.unpaidAmt)}</span>`:''}</td>
+            <td title="From Pay Items menu">RM ${fmt2(e.allowances||0)}</td>
+            <td title="From Pay Items menu">RM ${fmt2(e.otAmt||0)}</td>
+            <td title="From Pay Items menu">RM ${fmt2(e.phPay||0)}</td>
             <td>
               ${run.status==='draft'
                 ? `<input type="number" value="${e.commission||0}" step="0.01" style="width:90px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:12px" onchange="updatePayEntry(${i},'commission',this.value)" placeholder="Commission">`
                 : fmt2(e.commission||0)}
             </td>
-            <td>
-              ${run.status==='draft' && monthHolidays.length
-                ? `<input type="number" value="${e.phWorkedDays||0}" min="0" max="${monthHolidays.length}" step="1" style="width:64px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:12px" onchange="updatePayEntry(${i},'phWorkedDays',this.value)" title="Days worked out of ${monthHolidays.length} PH this month">`
-                : `${e.phWorkedDays||0} / ${monthHolidays.length}`}
-            </td>
-            <td>RM ${fmt2(e.phPay||0)}</td>
-            <td>
-              ${run.status==='draft'
-                ? `<input type="number" value="${e.otAmt}" step="0.01" style="width:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:12px" onchange="updatePayEntry(${i},'otAmt',this.value)" placeholder="OT amt">`
-                : fmt2(e.otAmt)}
-            </td>
+            ${anySop?`<td>${(()=>{const p=pkgOf(e);return p&&p.sopEnabled ? (run.status==='draft'?`<input type="number" value="${e.sopScore||0}" step="1" min="0" style="width:64px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:12px" onchange="updatePayEntry(${i},'sopScore',this.value)">`:(e.sopScore||0)) : '<span style="color:var(--muted)">—</span>';})()}</td>`:''}
+            ${anyUnit?`<td>${(()=>{const p=pkgOf(e);return p&&p.perunitEnabled ? (run.status==='draft'?`<input type="number" value="${e.units||0}" step="1" min="0" style="width:64px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:12px" onchange="updatePayEntry(${i},'units',this.value)" title="${p.perunitLabel||'unit'}s sold">`:(e.units||0)) : '<span style="color:var(--muted)">—</span>';})()}</td>`:''}
+            ${anyBonus?`<td title="${(e.bonusBreakdown||[]).map(b=>b.label+': RM '+fmt2(b.amount)).join(' | ')||'No bonus'}" style="color:var(--credit)">RM ${fmt2(e.bonus||0)}</td>`:''}
+            <td title="Reimbursements — added to net, exempt from deductions">RM ${fmt2(e.claims||0)}</td>
             <td style="font-weight:600">RM ${fmt2(e.gross)}</td>
             <td>RM ${fmt2(e.epfEmployee)}</td>
             <td>RM ${fmt2(e.socsoEmployee)}</td>
@@ -2505,11 +3091,13 @@ function renderPayrollWorkspace(run) {
         <tr class="pay-total-row">
           <td>TOTAL</td>
           <td>RM ${fmt2(run.entries.reduce((s,e)=>s+e.basicSalary,0))}</td>
-          <td>RM ${fmt2(run.entries.reduce((s,e)=>s+e.allowances,0))}</td>
-          <td>RM ${fmt2(run.entries.reduce((s,e)=>s+(e.commission||0),0))}</td>
           <td></td>
+          <td>RM ${fmt2(run.entries.reduce((s,e)=>s+(e.allowances||0),0))}</td>
+          <td>RM ${fmt2(run.entries.reduce((s,e)=>s+(e.otAmt||0),0))}</td>
           <td>RM ${fmt2(run.entries.reduce((s,e)=>s+(e.phPay||0),0))}</td>
-          <td>RM ${fmt2(run.entries.reduce((s,e)=>s+e.otAmt,0))}</td>
+          <td>RM ${fmt2(run.entries.reduce((s,e)=>s+(e.commission||0),0))}</td>
+          ${bonusTotalCells}
+          <td>RM ${fmt2(run.entries.reduce((s,e)=>s+(e.claims||0),0))}</td>
           <td>RM ${fmt2(totalGross)}</td>
           <td>RM ${fmt2(run.entries.reduce((s,e)=>s+e.epfEmployee,0))}</td>
           <td>RM ${fmt2(run.entries.reduce((s,e)=>s+e.socsoEmployee,0))}</td>
@@ -2529,8 +3117,10 @@ function renderPayrollWorkspace(run) {
     </div>
 
     <div style="margin-top:12px;font-size:12px;color:var(--muted)">
-      ⚠ Allowance, Commission &amp; OT accept total amounts (RM) and are added to gross. For OT hours, use: (Basic/26/dailyHours) × rate × hours.<br>
-      💡 Public Holiday pay is auto-calculated: PH Pay = Σ(holiday rate × Basic÷26) for each PH day worked. Rates (1.5× / 2.0×) are set per holiday under Leave Management → Public Holidays.<br>
+      💡 <strong>Allowance, Overtime &amp; Public Holiday pay</strong> are recorded per employee under the <strong>Pay Items</strong> menu and pulled in here automatically (subject to EPF/SOCSO/EIS/PCB). Editable here: <strong>Basic</strong> and <strong>Commission</strong>.<br>
+      💵 <strong>Claims/Reimbursements</strong> are added to Net Pay on top of Gross and are exempt from statutory deductions.<br>
+      🗓 <strong>Attendance</strong> shows working days vs leave taken this month. Only <strong>unpaid</strong> leave reduces pay (Basic÷26 per day); annual/medical/other approved leave is paid.<br>
+      🏆 <strong>Bonus</strong> is computed from the employee's assigned package (Packages menu). Enter SOP score / units per employee; company-tier bonus uses the company sales figure above. Bonuses add to gross (subject to statutory deductions). Pro-rated basic (EA 1955) applies to mid-month joiners/leavers.<br>
       EPF: Employee 11% / Employer 13% (≤RM5k) or 12% (>RM5k) &nbsp;|&nbsp; SOCSO: 0.5% / 1.75% (cap RM5k) &nbsp;|&nbsp; EIS: 0.2% each (cap RM4k) &nbsp;|&nbsp; PCB: progressive MTD
     </div>
   `;
@@ -2538,30 +3128,29 @@ function renderPayrollWorkspace(run) {
 
   function updatePayEntry(idx, field, val) {
     const entry = ws._run.entries[idx];
-    if (field === 'phWorkedDays') {
-      entry.phWorkedDays = Math.min(Math.max(parseInt(val) || 0, 0), monthHolidays.length);
-    } else {
-      entry[field] = parseFloat(val) || 0;
-    }
-    // Auto-calculate public holiday pay from days worked (EA 1955)
-    entry.phPay = calcPHPay(entry.basicSalary, entry.phWorkedDays || 0, monthHolidays);
-    // Recalculate gross & deductions
-    entry.gross = Math.round((entry.basicSalary - entry.unpaidAmt + entry.allowances + (entry.commission||0) + (entry.phPay||0) + entry.otAmt) * 100) / 100;
+    entry[field] = parseFloat(val) || 0;   // basicSalary, commission, sopScore or units
     const emp = employees.find(e => e.id === entry.employeeId) || {};
-    const epf   = calcEPF(entry.gross);
-    const socso = calcSOCSO(entry.gross);
-    const eis   = calcEIS(entry.gross);
-    const pcb   = calcPCB(entry.gross*12, emp.marital||'single', emp.marital==='married-spouse-not-working', emp.children||0, emp.residency||'resident');
-    entry.epfEmployee = epf.employee; entry.epfEmployer = epf.employer;
-    entry.socsoEmployee = socso.employee; entry.socsoEmployer = socso.employer;
-    entry.eisEmployee = eis.employee; entry.eisEmployer = eis.employer;
-    entry.pcb = pcb;
-    entry.totalDeductions = Math.round((epf.employee+socso.employee+eis.employee+pcb)*100)/100;
-    entry.netPay = Math.round((entry.gross - entry.totalDeductions)*100)/100;
-    entry.employerCost = Math.round((entry.gross+epf.employer+socso.employer+eis.employer)*100)/100;
+    // If basic changed, re-derive its pro-rated value; OT/PH also depend on basic
+    if (field === 'basicSalary') entry.proratedBasic = proratedBasic(entry.basicSalary, emp, ws._run.year, ws._run.month);
+    const empCalc = { ...emp, basicSalary: entry.basicSalary };
+    const pi = payItemTotals(entry.employeeId, ws._run.year, ws._run.month, empCalc);
+    entry.allowances = pi.allowances; entry.otAmt = pi.otAmt; entry.phPay = pi.phPay; entry.claims = pi.claims;
+    // Unpaid-leave deduction tracks the (possibly edited) basic salary
+    entry.unpaidAmt = Math.round((entry.unpaidDays || 0) * ((parseFloat(entry.basicSalary)||0) / 26) * 100) / 100;
+    recalcEntry(entry, empCalc, ws._run.companySales);
     setTimeout(() => renderPayrollWorkspace(ws._run), 0);
   }
   window.updatePayEntry = updatePayEntry;
+
+  function updateCompanySales(val) {
+    ws._run.companySales = parseFloat(val) || 0;
+    ws._run.entries.forEach(entry => {
+      const emp = employees.find(e => e.id === entry.employeeId) || {};
+      recalcEntry(entry, { ...emp, basicSalary: entry.basicSalary }, ws._run.companySales);
+    });
+    setTimeout(() => renderPayrollWorkspace(ws._run), 0);
+  }
+  window.updateCompanySales = updateCompanySales;
 
   function viewSlip(idx) {
     const entry = ws._run.entries[idx];
@@ -2579,11 +3168,14 @@ function renderPayrollWorkspace(run) {
         </div>
         <div style="font-size:13px">
           <div style="font-weight:700;color:var(--muted);font-size:11px;margin-bottom:6px;text-transform:uppercase">Earnings</div>
-          <div class="slip-row"><span>Basic Salary</span><span>RM ${fmt2(entry.basicSalary)}</span></div>
+          ${(entry.proratedBasic!=null && entry.proratedBasic < entry.basicSalary)
+            ? `<div class="slip-row"><span>Basic Salary (prorated ${entry.daysEmployed}/${entry.daysInMonth} days)</span><span>RM ${fmt2(entry.proratedBasic)}</span></div>`
+            : `<div class="slip-row"><span>Basic Salary</span><span>RM ${fmt2(entry.basicSalary)}</span></div>`}
           ${entry.allowances?`<div class="slip-row"><span>Allowances</span><span>RM ${fmt2(entry.allowances)}</span></div>`:''}
-          ${entry.commission?`<div class="slip-row"><span>Commission</span><span>RM ${fmt2(entry.commission)}</span></div>`:''}
-          ${entry.phPay?`<div class="slip-row"><span>Public Holiday Pay (${entry.phWorkedDays||0}d)</span><span>RM ${fmt2(entry.phPay)}</span></div>`:''}
           ${entry.otAmt?`<div class="slip-row"><span>Overtime</span><span>RM ${fmt2(entry.otAmt)}</span></div>`:''}
+          ${entry.phPay?`<div class="slip-row"><span>Public Holiday Pay</span><span>RM ${fmt2(entry.phPay)}</span></div>`:''}
+          ${entry.commission?`<div class="slip-row"><span>Commission</span><span>RM ${fmt2(entry.commission)}</span></div>`:''}
+          ${(entry.bonusBreakdown||[]).map(b=>`<div class="slip-row"><span>${b.label}</span><span>RM ${fmt2(b.amount)}</span></div>`).join('')}
           ${entry.unpaidAmt?`<div class="slip-row"><span style="color:var(--debit)">Unpaid Leave (${entry.unpaidDays}d)</span><span style="color:var(--debit)">- RM ${fmt2(entry.unpaidAmt)}</span></div>`:''}
           <hr class="slip-divider">
           <div class="slip-row"><span style="font-weight:600">Gross Salary</span><span style="font-weight:600">RM ${fmt2(entry.gross)}</span></div>
@@ -2594,6 +3186,13 @@ function renderPayrollWorkspace(run) {
           <div class="slip-row"><span>PCB / MTD (Tax)</span><span style="color:var(--debit)">- RM ${fmt2(entry.pcb)}</span></div>
           <hr class="slip-divider">
           <div class="slip-row slip-total"><span>NET PAY</span><span style="color:var(--credit)">RM ${fmt2(entry.netPay)}</span></div>
+          ${entry.claims?`
+          <div class="slip-row"><span>Claims / Reimbursement (exempt)</span><span>+ RM ${fmt2(entry.claims)}</span></div>
+          <div class="slip-row slip-total"><span>TOTAL PAYOUT</span><span style="color:var(--credit)">RM ${fmt2(Math.round((entry.netPay + entry.claims)*100)/100)}</span></div>`:''}
+          ${entry.attendance && entry.attendance.total ? `
+          <div style="font-weight:700;color:var(--muted);font-size:11px;margin:12px 0 6px;text-transform:uppercase">Attendance / Leave This Month</div>
+          ${(() => { const a=entry.attendance; const lbl={annual:'Annual',medical:'Medical',emergency:'Emergency',maternity:'Maternity',paternity:'Paternity',unpaid:'Unpaid'};
+            return Object.keys(lbl).filter(k=>(a[k]||0)>0).map(k=>`<div class="slip-row"><span>${lbl[k]} Leave</span><span>${a[k]} day(s)</span></div>`).join(''); })()}` : ''}
           <hr class="slip-divider" style="margin-top:12px">
           <div style="font-weight:700;color:var(--muted);font-size:11px;margin:12px 0 6px;text-transform:uppercase">Employer Contributions (not deducted)</div>
           <div class="slip-row"><span>EPF (Employer ${entry.gross>5000?'12':'13'}%)</span><span>RM ${fmt2(entry.epfEmployer)}</span></div>
@@ -2616,43 +3215,51 @@ function finalizePayroll(runId) {
   if (!run) return;
   if (!confirm(`Finalize ${['','January','February','March','April','May','June','July','August','September','October','November','December'][run.month]} ${run.year} payroll and post to expenses?`)) return;
 
-  run.id = runId;
-  run.status = 'finalized';
-  run.processedDate = new Date().toISOString().slice(0,10);
-  run.totalGross = run.entries.reduce((s,e)=>s+e.gross,0);
-  run.totalNet   = run.entries.reduce((s,e)=>s+e.netPay,0);
-  run.totalCost  = run.entries.reduce((s,e)=>s+e.employerCost,0);
-
-  // Post to transactions as company expense
+  // Compute finalized fields on locals — don't mutate the draft until writes confirm
+  const final = {
+    id: runId, status: 'finalized', processedDate: new Date().toISOString().slice(0,10),
+    totalGross: run.entries.reduce((s,e)=>s+e.gross,0),
+    totalNet:   run.entries.reduce((s,e)=>s+e.netPay,0),
+    totalCost:  run.entries.reduce((s,e)=>s+e.employerCost,0),
+  };
   const monthStr = ['','January','February','March','April','May','June','July','August','September','October','November','December'][run.month];
-  const desc = `Payroll ${monthStr} ${run.year} (${run.entries.length} staff)`;
-  const today = new Date().toISOString().slice(0,10);
-
+  const desc  = `Payroll ${monthStr} ${run.year} (${run.entries.length} staff)`;
+  const today = final.processedDate;
   const tx1 = {
-    id: uid(), date: today, amount: Math.round(run.totalNet*100)/100,
+    id: uid(), date: today, amount: Math.round(final.totalNet*100)/100,
     type: 'debit', account: 'Payroll', description: desc + ' — Net Pay to Staff',
     category: 'Salary/Payroll', paymentClass: 'bill', staffName: '',
-    ref: run.id, notes: 'EPF(er)+SOCSO(er)+EIS(er) posted separately', source: 'payroll'
+    ref: runId, notes: 'EPF(er)+SOCSO(er)+EIS(er) posted separately', source: 'payroll'
   };
   const erContrib = run.entries.reduce((s,e)=>s+(e.epfEmployer+e.socsoEmployer+e.eisEmployer),0);
   const tx2 = {
     id: uid(), date: today, amount: Math.round(erContrib*100)/100,
     type: 'debit', account: 'Payroll', description: desc + ' — Employer EPF+SOCSO+EIS',
     category: 'Salary/Payroll', paymentClass: 'bill', staffName: '',
-    ref: run.id, notes: 'Statutory employer contributions', source: 'payroll'
+    ref: runId, notes: 'Statutory employer contributions', source: 'payroll'
   };
-  transactions.push(tx1, tx2);
-  payrollRuns = payrollRuns.filter(r => !(r.month===run.month && r.year===run.year));
-  payrollRuns.push(run);
-  savePayrollData();
-  saveData();
-  // Sync to Supabase
-  sbUpsert('payroll_runs', toRunRow(run));
-  sbUpsert('transactions', toTxRow(tx1));
-  sbUpsert('transactions', toTxRow(tx2));
-  renderPayrollWorkspace(run);
-  refreshPayHistory();
-  toast(`Payroll finalized & posted to expenses (RM ${fmt2(run.totalCost)} total employer cost)`, 'success');
+  const finalizedRun = { ...run, ...final };
+
+  persist(
+    // Not a single DB transaction: if a later write fails after an earlier one
+    // succeeded, nothing commits locally — the user simply retries finalize.
+    async () => {
+      await sbUpsert('payroll_runs', toRunRow(finalizedRun));
+      await sbUpsert('transactions', toTxRow(tx1));
+      await sbUpsert('transactions', toTxRow(tx2));
+    },
+    () => {
+      Object.assign(run, final);   // now safe to flip the draft to finalized
+      transactions.push(tx1, tx2);
+      payrollRuns = payrollRuns.filter(r => !(r.month===run.month && r.year===run.year));
+      payrollRuns.push(run);
+      savePayrollData();
+      saveData();
+      renderPayrollWorkspace(run);
+      refreshPayHistory();
+    },
+    `Payroll finalized & posted to expenses (RM ${fmt2(final.totalCost)} total employer cost)`
+  );
 }
 
 function refreshPayHistory() {
@@ -2754,7 +3361,7 @@ async function diagSupabase() {
   const lines  = [`URL: ${url}`, `Key: ${key.slice(0,20)}...`];
   let allOk = true;
 
-  for (const table of ['transactions','employees','leave_records','payroll_runs','public_holidays']) {
+  for (const table of ['transactions','employees','leave_records','payroll_runs','public_holidays','pay_items','bonus_packages']) {
     const { data, error } = await client.from(table).select('id').limit(1);
     if (error) {
       lines.push(`❌ "${table}": ${error.message} (code: ${error.code})`);
@@ -2793,7 +3400,8 @@ const toEmp = r => ({
   basicSalary: r.basic_salary, workDays: r.work_days, dailyHours: r.daily_hours,
   residency: r.residency, marital: r.marital, children: r.children,
   epfNo: r.epf_no, socsoNo: r.socso_no, taxNo: r.tax_no,
-  bank: r.bank, bankAcc: r.bank_acc, status: r.status
+  bank: r.bank, bankAcc: r.bank_acc, status: r.status,
+  endDate: r.end_date || '', packageId: r.package_id || ''
 });
 const toEmpRow = e => ({
   id: e.id, name: e.name, employee_id: e.employeeId, ic: e.ic,
@@ -2801,7 +3409,8 @@ const toEmpRow = e => ({
   basic_salary: e.basicSalary, work_days: e.workDays, daily_hours: e.dailyHours,
   residency: e.residency, marital: e.marital, children: e.children,
   epf_no: e.epfNo, socso_no: e.socsoNo, tax_no: e.taxNo,
-  bank: e.bank, bank_acc: e.bankAcc, status: e.status
+  bank: e.bank, bank_acc: e.bankAcc, status: e.status,
+  end_date: e.endDate || null, package_id: e.packageId || null
 });
 const toLeave = r => ({
   id: r.id, employeeId: r.employee_id, type: r.type,
@@ -2830,55 +3439,117 @@ const toRunRow = r => ({
   processed_date: r.processedDate, total_gross: r.totalGross,
   total_net: r.totalNet, total_cost: r.totalCost, entries: r.entries
 });
+const toPayItem = r => ({
+  id: r.id, employeeId: r.employee_id, month: r.month, year: r.year,
+  type: r.type, label: r.label||'', otType: r.ot_type||'',
+  hours: r.hours!=null ? Number(r.hours) : 0,
+  phDays: r.ph_days!=null ? Number(r.ph_days) : 0,
+  amount: r.amount!=null ? Number(r.amount) : 0, notes: r.notes||''
+});
+const toPayItemRow = p => ({
+  id: p.id, employee_id: p.employeeId, month: p.month, year: p.year,
+  type: p.type, label: p.label, ot_type: p.otType,
+  hours: p.hours, ph_days: p.phDays, amount: p.amount, notes: p.notes
+});
+const toPackage = r => ({
+  id: r.id, name: r.name,
+  sopEnabled: !!r.sop_enabled, sopTiers: r.sop_tiers || [],
+  perunitEnabled: !!r.perunit_enabled, perunitLabel: r.perunit_label || 'unit',
+  perunitRate: r.perunit_rate != null ? Number(r.perunit_rate) : 0,
+  companyEnabled: !!r.company_enabled, companyTiers: r.company_tiers || []
+});
+const toPackageRow = p => ({
+  id: p.id, name: p.name,
+  sop_enabled: p.sopEnabled, sop_tiers: p.sopTiers,
+  perunit_enabled: p.perunitEnabled, perunit_label: p.perunitLabel, perunit_rate: p.perunitRate,
+  company_enabled: p.companyEnabled, company_tiers: p.companyTiers
+});
 
 async function syncAllFromSupabase() {
   if (!sb) { setSyncStatus('offline'); return; }
   try {
     setSyncStatus('syncing');
-    const [tx, emp, lv, pr, ph] = await Promise.all([
+    const [tx, emp, lv, pr, ph, pi, bp] = await Promise.all([
       sb.from('transactions').select('*').order('date', { ascending: false }),
       sb.from('employees').select('*').order('created_at'),
       sb.from('leave_records').select('*').order('created_at', { ascending: false }),
       sb.from('payroll_runs').select('*').order('year', { ascending: false }),
       sb.from('public_holidays').select('*').order('date'),
+      sb.from('pay_items').select('*').order('created_at', { ascending: false }),
+      sb.from('bonus_packages').select('*').order('created_at'),
     ]);
     if (tx.error) throw tx.error;
     transactions  = (tx.data  || []).map(toTx);
     employees     = (emp.data || []).map(toEmp);
     leaveRecords  = (lv.data  || []).map(toLeave);
     payrollRuns   = (pr.data  || []).map(toRun);
+    if (!pi.error && pi.data) payItems = pi.data.map(toPayItem);
+    if (!bp.error && bp.data) bonusPackages = bp.data.map(toPackage);
     if (!ph.error && ph.data && ph.data.length) publicHolidays = ph.data.map(toHoliday);
     // Update local cache
     localStorage.setItem('moja_transactions',  JSON.stringify(transactions));
     localStorage.setItem('moja_employees',     JSON.stringify(employees));
     localStorage.setItem('moja_leaves',        JSON.stringify(leaveRecords));
     localStorage.setItem('moja_payrollruns',   JSON.stringify(payrollRuns));
+    localStorage.setItem('moja_payitems',      JSON.stringify(payItems));
+    localStorage.setItem('moja_packages',      JSON.stringify(bonusPackages));
     localStorage.setItem('moja_holidays',      JSON.stringify(publicHolidays));
     setSyncStatus('synced');
     document.getElementById('txCount').textContent = transactions.length;
     refreshDashboard();
+    applyWriteableUI(canWrite());   // authoritative data loaded — writes allowed if authenticated
     toast('Synced from Supabase ✅', 'success');
   } catch(e) {
+    // Could not reach the authoritative store — stay read-only on the cache
+    applyWriteableUI(false);
     setSyncStatus('error', '❌ ' + (e.message||'Sync failed'));
     toast('Supabase error: ' + (e.message||e), 'error');
   }
 }
 
-// ── Individual record sync helpers (fire-and-forget) ──
+// ── Writeability + server-first write-through ──
+// Supabase is the source of truth. Writes must be confirmed by Supabase BEFORE
+// the in-memory arrays / localStorage cache / UI are updated. When there is no
+// authenticated connection the app is read-only (viewing works from cache).
+let sbSession = null;
+function canWrite() { return !!(sb && sbSession); }
+
+// Toggle the read-only affordance: disable primary write buttons + reflect status.
+function applyWriteableUI(on) {
+  document.querySelectorAll('.js-write').forEach(b => { b.disabled = !on; });
+  if (!on) setSyncStatus('offline', 'Read-only — connect to save');
+}
+
+// Run a Supabase write, and ONLY on success run commitFn (which mutates the
+// in-memory array + localStorage cache + refreshes the UI). On failure nothing
+// local changes, so local and cloud cannot diverge.
+async function persist(serverFn, commitFn, okMsg) {
+  if (!canWrite()) { toast('Read-only — connect to Supabase to make changes', 'error'); return false; }
+  try {
+    await serverFn();
+    commitFn();
+    if (okMsg) toast(okMsg, 'success');
+    return true;
+  } catch (e) {
+    setSyncStatus('error', e.message || 'Save failed');
+    toast('Not saved — ' + (e.message || e), 'error');
+    return false;
+  }
+}
+
+// ── Confirmed record writes (throw on error so persist() can catch) ──
 async function sbUpsert(table, row) {
-  if (!sb) return;
   setSyncStatus('syncing');
   const { error } = await sb.from(table).upsert(row, { onConflict: 'id' });
-  if (error) { setSyncStatus('error', '❌ ' + error.message); toast('Sync error: ' + error.message, 'error'); }
-  else setSyncStatus('synced');
+  if (error) throw error;
+  setSyncStatus('synced');
 }
 
 async function sbDelete(table, id) {
-  if (!sb) return;
   setSyncStatus('syncing');
   const { error } = await sb.from(table).delete().eq('id', id);
-  if (error) { setSyncStatus('error', '❌ ' + error.message); toast('Sync error: ' + error.message, 'error'); }
-  else setSyncStatus('synced');
+  if (error) throw error;
+  setSyncStatus('synced');
 }
 
 // ============================================================
@@ -2897,17 +3568,17 @@ refreshCategorySelects();
 document.getElementById('txCount').textContent = transactions.length;
 onProviderChange(true);
 refreshDashboard();
-// Connect Supabase if credentials already saved, then verify auth session
+// Supabase is the source of truth. The cache load above is only for an instant
+// first paint / offline viewing; now make reads authoritative.
+applyWriteableUI(false);        // start read-only until an authoritative sync succeeds
 initSupabase();
 checkAuthSession().then(() => {
-  // If already authenticated, sync data
-  if (sb) sb.auth.getSession().then(({ data: { session } }) => {
-    if (session) syncAllFromSupabase();
-  });
+  if (sbSession) syncAllFromSupabase();   // authoritative overwrite + unlocks writes
+  else setSyncStatus('offline', 'Read-only — sign in to save');
 });
 
 // Close payroll modals on backdrop click
-['empModal','leaveModal','slipModal','holidayModal'].forEach(id => {
+['empModal','leaveModal','slipModal','holidayModal','payItemModal','packageModal'].forEach(id => {
   document.getElementById(id).addEventListener('click', function(e) { if (e.target === this) this.classList.remove('open'); });
 });
 </script>
