@@ -129,6 +129,15 @@ alter table public_holidays enable row level security;
 alter table pay_items       enable row level security;
 alter table bonus_packages  enable row level security;
 
+-- Policies (drop first so script is safe to re-run)
+drop policy if exists "Allow all on transactions"    on transactions;
+drop policy if exists "Allow all on employees"       on employees;
+drop policy if exists "Allow all on leave_records"   on leave_records;
+drop policy if exists "Allow all on payroll_runs"    on payroll_runs;
+drop policy if exists "Allow all on public_holidays" on public_holidays;
+drop policy if exists "Allow all on pay_items"       on pay_items;
+drop policy if exists "Allow all on bonus_packages"  on bonus_packages;
+
 create policy "Allow all on transactions"    on transactions    for all using (true) with check (true);
 create policy "Allow all on employees"       on employees       for all using (true) with check (true);
 create policy "Allow all on leave_records"   on leave_records   for all using (true) with check (true);

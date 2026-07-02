@@ -345,6 +345,7 @@
     </div>
     <div style="padding:4px 20px 10px;display:flex;flex-direction:column;gap:6px">
       <button class="btn btn-primary btn-sm" style="width:100%;font-size:12px" onclick="connectSupabase()">Connect & Sync</button>
+      <button class="btn btn-outline btn-sm" style="width:100%;font-size:12px" onclick="resyncSupabase()">↕ Resync (Push & Pull)</button>
       <button class="btn btn-outline btn-sm" style="width:100%;font-size:12px" onclick="diagSupabase()">🔍 Diagnose</button>
     </div>
     <div class="sidebar-footer">
@@ -3350,6 +3351,21 @@ function initSupabase() {
   return true;
 }
 
+const SB_TABLES = ['transactions','employees','leave_records','payroll_runs','public_holidays','pay_items','bonus_packages'];
+
+async function probeSupabaseTables(client) {
+  const results = {};
+  for (const table of SB_TABLES) {
+    const { count, error: countErr } = await client.from(table).select('id', { count: 'exact', head: true });
+    if (countErr) {
+      results[table] = { ok: false, error: countErr.message, code: countErr.code, count: 0 };
+    } else {
+      results[table] = { ok: true, count: count ?? 0 };
+    }
+  }
+  return results;
+}
+
 async function diagSupabase() {
   const url = sanitiseSbUrl(document.getElementById('sbUrl').value.trim());
   const key = document.getElementById('sbKey').value.trim();
@@ -3358,26 +3374,87 @@ async function diagSupabase() {
   if (typeof supabase === 'undefined') { toast('Supabase JS library failed to load — check internet connection', 'error'); return; }
 
   const client = supabase.createClient(url, key);
-  const lines  = [`URL: ${url}`, `Key: ${key.slice(0,20)}...`];
+  const lines  = [`URL: ${url}`, `Key: ${key.slice(0,20)}...`, ''];
+  const probe  = await probeSupabaseTables(client);
   let allOk = true;
 
-  for (const table of ['transactions','employees','leave_records','payroll_runs','public_holidays','pay_items','bonus_packages']) {
-    const { data, error } = await client.from(table).select('id').limit(1);
-    if (error) {
-      lines.push(`❌ "${table}": ${error.message} (code: ${error.code})`);
+  for (const table of SB_TABLES) {
+    const r = probe[table];
+    if (!r.ok) {
+      lines.push(`❌ "${table}": ${r.error} (code: ${r.code})`);
       allOk = false;
     } else {
-      lines.push(`✅ "${table}" — OK (${data.length} row sample)`);
+      lines.push(`✅ "${table}" — ${r.count} row(s) in Supabase`);
     }
+  }
+
+  // Local cache counts + orphan pay items
+  const empIds = new Set(employees.map(e => e.id));
+  const orphanPayItems = payItems.filter(p => !empIds.has(p.employeeId));
+  lines.push('');
+  lines.push('Local cache:');
+  lines.push(`  employees: ${employees.length}, pay_items: ${payItems.length}, holidays: ${publicHolidays.length}, packages: ${bonusPackages.length}`);
+  if (orphanPayItems.length) {
+    lines.push(`  ⚠ ${orphanPayItems.length} pay item(s) reference missing employee IDs (will be skipped on push)`);
   }
 
   alert(lines.join('\n'));
 
   if (!allOk) {
-    const missing = lines.filter(l=>l.startsWith('❌')).map(l=>l.match(/"(\w+)"/)?.[1]).filter(Boolean);
-    if (missing.length) {
-      toast(`Tables missing: ${missing.join(', ')} — run supabase_schema.sql first`, 'error');
+    const missing = SB_TABLES.filter(t => !probe[t].ok);
+    toast(`Tables missing: ${missing.join(', ')} — run supabase_schema.sql in Supabase SQL Editor first`, 'error');
+  }
+}
+
+// Push local cache → Supabase (dependency order), then pull authoritative copy back.
+async function resyncSupabase() {
+  if (!canWrite()) { toast('Sign in first — resync requires an authenticated Supabase session', 'error'); return; }
+
+  const probe = await probeSupabaseTables(sb);
+  const missing = SB_TABLES.filter(t => !probe[t].ok);
+  if (missing.length) {
+    toast(`Missing tables: ${missing.join(', ')}. Run supabase_schema.sql in Supabase Dashboard → SQL Editor, then retry.`, 'error');
+    alert(
+      'These Supabase tables are missing:\n\n  ' + missing.join('\n  ') +
+      '\n\n1. Open Supabase Dashboard → SQL Editor\n' +
+      '2. Paste and run the contents of supabase_schema.sql\n' +
+      '3. Click "Resync (Push & Pull)" again'
+    );
+    return;
+  }
+
+  if (!confirm(
+    'Push all local data to Supabase, then pull the latest copy?\n\n' +
+    `Local: ${employees.length} employees, ${payItems.length} pay items, ${publicHolidays.length} holidays, ${bonusPackages.length} packages, ${leaveRecords.length} leave, ${payrollRuns.length} payroll runs, ${transactions.length} transactions`
+  )) return;
+
+  setSyncStatus('syncing', 'Pushing local data…');
+  const empIds = new Set(employees.map(e => e.id));
+  const validPayItems = payItems.filter(p => empIds.has(p.employeeId));
+  const skippedOrphans = payItems.length - validPayItems.length;
+
+  try {
+    await sbUpsertBatch('employees',       employees.map(toEmpRow));
+    await sbUpsertBatch('bonus_packages',  bonusPackages.map(toPackageRow));
+    await sbUpsertBatch('public_holidays', publicHolidays.map(toHolidayRow));
+    await sbUpsertBatch('pay_items',       validPayItems.map(toPayItemRow));
+    await sbUpsertBatch('leave_records',   leaveRecords.filter(l => empIds.has(l.employeeId)).map(toLeaveRow));
+    await sbUpsertBatch('payroll_runs',    payrollRuns.map(toRunRow));
+    await sbUpsertBatch('transactions',    transactions.map(toTxRow));
+
+    if (skippedOrphans) {
+      payItems = validPayItems;
+      savePayrollData();
     }
+
+    await syncAllFromSupabase();
+    const msg = skippedOrphans
+      ? `Resync complete — removed ${skippedOrphans} orphan pay item(s) with missing employees`
+      : 'Resync complete — local data pushed and refreshed from Supabase';
+    toast(msg, 'success');
+  } catch (e) {
+    setSyncStatus('error', e.message || 'Resync failed');
+    toast('Resync failed: ' + (e.message || e), 'error');
   }
 }
 
@@ -3478,14 +3555,22 @@ async function syncAllFromSupabase() {
       sb.from('pay_items').select('*').order('created_at', { ascending: false }),
       sb.from('bonus_packages').select('*').order('created_at'),
     ]);
-    if (tx.error) throw tx.error;
+    const errors = [
+      ['transactions', tx.error], ['employees', emp.error], ['leave_records', lv.error],
+      ['payroll_runs', pr.error], ['public_holidays', ph.error], ['pay_items', pi.error],
+      ['bonus_packages', bp.error],
+    ].filter(([, err]) => err);
+    if (errors.length) {
+      const msg = errors.map(([t, e]) => `${t}: ${e.message}`).join('; ');
+      throw new Error(msg);
+    }
     transactions  = (tx.data  || []).map(toTx);
     employees     = (emp.data || []).map(toEmp);
     leaveRecords  = (lv.data  || []).map(toLeave);
     payrollRuns   = (pr.data  || []).map(toRun);
-    if (!pi.error && pi.data) payItems = pi.data.map(toPayItem);
-    if (!bp.error && bp.data) bonusPackages = bp.data.map(toPackage);
-    if (!ph.error && ph.data && ph.data.length) publicHolidays = ph.data.map(toHoliday);
+    payItems      = (pi.data  || []).map(toPayItem);
+    bonusPackages = (bp.data  || []).map(toPackage);
+    if (ph.data && ph.data.length) publicHolidays = ph.data.map(toHoliday);
     // Update local cache
     localStorage.setItem('moja_transactions',  JSON.stringify(transactions));
     localStorage.setItem('moja_employees',     JSON.stringify(employees));
@@ -3542,6 +3627,19 @@ async function sbUpsert(table, row) {
   setSyncStatus('syncing');
   const { error } = await sb.from(table).upsert(row, { onConflict: 'id' });
   if (error) throw error;
+  setSyncStatus('synced');
+}
+
+async function sbUpsertBatch(table, rows) {
+  if (!rows.length) return;
+  setSyncStatus('syncing');
+  // Supabase REST upsert accepts arrays; chunk to avoid payload limits
+  const CHUNK = 100;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const chunk = rows.slice(i, i + CHUNK);
+    const { error } = await sb.from(table).upsert(chunk, { onConflict: 'id' });
+    if (error) throw new Error(`${table}: ${error.message}`);
+  }
   setSyncStatus('synced');
 }
 
