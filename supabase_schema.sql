@@ -31,7 +31,7 @@ create table if not exists employees (
   join_date     text,
   basic_salary  numeric(15,2),
   work_days     numeric(4,1) default 5,
-  daily_hours   integer default 8,
+  daily_hours   numeric(4,1) default 8,
   residency     text default 'resident',
   marital       text default 'single',
   children      integer default 0,
@@ -50,6 +50,7 @@ create table if not exists employees (
 alter table employees add column if not exists end_date   text;
 alter table employees add column if not exists package_id text;
 alter table employees add column if not exists rest_days  text;
+alter table employees alter column daily_hours type numeric(4,1);
 
 -- 3. LEAVE RECORDS
 create table if not exists leave_records (
