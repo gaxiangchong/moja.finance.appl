@@ -824,7 +824,7 @@
         </select>
       </div>
       <div class="form-group"><label>Daily Working Hours</label>
-        <select id="empDailyHours"><option value="8">8 hours</option><option value="9">9 hours</option></select>
+        <select id="empDailyHours"><option value="8">8 hours</option><option value="8.5">8.5 hours</option><option value="9">9 hours</option><option value="9.5">9.5 hours</option></select>
       </div>
       <div class="form-group"><label>Residency Status</label>
         <select id="empResidency"><option value="resident">Resident</option><option value="non-resident">Non-Resident</option></select>
@@ -2356,7 +2356,7 @@ function saveEmployee() {
     joinDate,
     basicSalary: salary,
     workDays:    parseFloat(document.getElementById('empWorkDays').value),
-    dailyHours:  parseInt(document.getElementById('empDailyHours').value),
+    dailyHours:  parseFloat(document.getElementById('empDailyHours').value),
     residency:   document.getElementById('empResidency').value,
     marital:     document.getElementById('empMarital').value,
     children:    parseInt(document.getElementById('empChildren').value)||0,
@@ -2574,7 +2574,7 @@ function isStatutoryEarning(type) { return type !== 'claim'; }
 // keeps them correct. Reuses calcOT / calcPHPay.
 function computePayItemAmount(item, emp) {
   const basic = parseFloat(emp && emp.basicSalary) || 0;
-  const dh    = parseInt(emp && emp.dailyHours) || 8;
+  const dh    = parseFloat(emp && emp.dailyHours) || 8;
   if (item.type === 'overtime') return calcOT(basic, dh, [{ type: item.otType, hours: item.hours || 0 }]);
   if (item.type === 'ph')       return calcPHPay(basic, item.phDays || 0, holidaysInMonth(item.year, item.month));
   return Math.round((parseFloat(item.amount) || 0) * 100) / 100; // allowance / claim
@@ -2761,7 +2761,7 @@ function onPayItemTypeChange() {
   document.getElementById('piComputed').textContent = 'RM ' + fmt2(amt);
   let hint = '';
   if (type === 'overtime' && emp) {
-    const basic = parseFloat(emp.basicSalary) || 0, dh = parseInt(emp.dailyHours) || 8;
+    const basic = parseFloat(emp.basicSalary) || 0, dh = parseFloat(emp.dailyHours) || 8;
     hint = `Hourly rate = Basic÷26÷${dh} = RM ${fmt2(basic/26/dh)}  →  × multiplier × ${draft.hours}h`;
   } else if (type === 'ph') {
     hint = `${holidaysInMonth(y, m).length} public holiday(s) this month · rate × Basic÷26 per day`;
