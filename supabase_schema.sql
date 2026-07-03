@@ -43,11 +43,13 @@ create table if not exists employees (
   status        text default 'active',
   end_date      text,
   package_id    text,
+  rest_days     text,               -- weekly rest days as CSV weekday indices (0=Sun … 6=Sat)
   created_at    timestamptz default now()
 );
 -- Backfill for existing installations (safe to re-run):
 alter table employees add column if not exists end_date   text;
 alter table employees add column if not exists package_id text;
+alter table employees add column if not exists rest_days  text;
 
 -- 3. LEAVE RECORDS
 create table if not exists leave_records (
